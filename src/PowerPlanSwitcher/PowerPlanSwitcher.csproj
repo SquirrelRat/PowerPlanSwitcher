@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>PowerPlanSwitcher</AssemblyName>
+    <RootNamespace>PowerPlanSwitcher</RootNamespace>
+    <Version>0.1.0</Version>
+    <AssemblyTitle>Power Plan Switcher</AssemblyTitle>
+    <Product>Power Plan Switcher</Product>
+    <Description>Windows tray app that switches power plans by activity and power source.</Description>
+    <Company>SquirrelRat</Company>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Run on newer desktop runtimes when the targeted one is not installed. -->
+    <RollForward>LatestMajor</RollForward>
+    <!-- Tiny single exe (needs .NET Desktop 8+); add -p:SelfContained=true for portable. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PowerPlanSwitcher.Core\PowerPlanSwitcher.Core.csproj" />
+  </ItemGroup>
+
+</Project>

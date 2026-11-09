@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore powerplan.slnx
+      - run: dotnet build powerplan.slnx -c Release --no-restore
+      - run: dotnet test powerplan.slnx -c Release --no-build
+      - run: dotnet publish src/PowerPlanSwitcher/PowerPlanSwitcher.csproj -c Release --no-build -o publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PowerPlanSwitcher-win-x64
+          path: publish/

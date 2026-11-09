@@ -1,0 +1,211 @@
+<Window x:Class="PowerPlanSwitcher.Settings.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Power Plan Switcher"
+        Height="600" Width="480"
+        MinHeight="520" MinWidth="440"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip"
+        Background="{DynamicResource WindowBackground}"
+        FontFamily="{DynamicResource BodyFont}"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="Power Plan Switcher"
+                       FontSize="20" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Text}" />
+            <TextBlock Text="Switch plans automatically from activity and power source."
+                       FontSize="13" Margin="0,2,0,0"
+                       Foreground="{DynamicResource SecondaryText}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+            <StackPanel>
+
+                <!-- Status -->
+                <Border Style="{DynamicResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="STATUS" Style="{DynamicResource CardCaption}" />
+                        <TextBlock Text="{Binding StatusLine}"
+                                   FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Text}" />
+                        <TextBlock Text="{Binding StatusDetail}"
+                                   FontSize="12" Margin="0,3,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SecondaryText}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Rules grid -->
+                <Border Style="{DynamicResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="PLAN FOR EACH SITUATION" Style="{DynamicResource CardCaption}" />
+
+                        <Grid Margin="0,2,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="1.35*" />
+                                <ColumnDefinition Width="1.35*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="On AC"
+                                       Style="{DynamicResource CardCaption}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,4" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="On battery"
+                                       Style="{DynamicResource CardCaption}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,4" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Active"
+                                       Style="{DynamicResource BodyText}" Margin="0,4,8,4" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,4,4,4"
+                                      ItemsSource="{Binding AvailablePlans}"
+                                      SelectedItem="{Binding SelectedActiveAc, Mode=TwoWay}"
+                                      SelectionChanged="OnRuleChanged" />
+                            <ComboBox Grid.Row="1" Grid.Column="2" Margin="0,4,0,4"
+                                      ItemsSource="{Binding AvailablePlans}"
+                                      SelectedItem="{Binding SelectedActiveBattery, Mode=TwoWay}"
+                                      SelectionChanged="OnRuleChanged" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Idle"
+                                       Style="{DynamicResource BodyText}" Margin="0,4,8,4" />
+                            <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,4,4,4"
+                                      ItemsSource="{Binding AvailablePlans}"
+                                      SelectedItem="{Binding SelectedIdleAc, Mode=TwoWay}"
+                                      SelectionChanged="OnRuleChanged" />
+                            <ComboBox Grid.Row="2" Grid.Column="2" Margin="0,4,0,4"
+                                      ItemsSource="{Binding AvailablePlans}"
+                                      SelectedItem="{Binding SelectedIdleBattery, Mode=TwoWay}"
+                                      SelectionChanged="OnRuleChanged" />
+                        </Grid>
+
+                        <TextBlock Text="Only plans that already exist on this PC are listed. The app never changes the plans themselves."
+                                   FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SecondaryText}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Idle detection -->
+                <Border Style="{DynamicResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="IDLE DETECTION" Style="{DynamicResource CardCaption}" />
+
+                        <Grid Margin="0,2,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Go idle after no input for"
+                                       Style="{DynamicResource BodyText}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <TextBox Width="48" Text="{Binding InputTimeoutMinutes, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, NotifyOnValidationError=True}"
+                                         TextAlignment="Right" VerticalContentAlignment="Center"
+                                         LostFocus="OnTimeoutCommitted" />
+                                <TextBlock Text="min" Style="{DynamicResource BodyText}" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Separator Margin="0,10,0,8" Background="{DynamicResource Border}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Idle when a screensaver is running"
+                                       Style="{DynamicResource BodyText}" TextWrapping="Wrap" />
+                            <CheckBox Grid.Column="1" IsChecked="{Binding OnScreensaver, Mode=TwoWay}"
+                                      Click="OnScreensaverOrLockChanged" />
+                        </Grid>
+
+                        <Separator Margin="0,10,0,8" Background="{DynamicResource Border}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Idle when the workstation is locked"
+                                       Style="{DynamicResource BodyText}" TextWrapping="Wrap" />
+                            <CheckBox Grid.Column="1" IsChecked="{Binding OnLock, Mode=TwoWay}"
+                                      Click="OnScreensaverOrLockChanged" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Scanning -->
+                <Border Style="{DynamicResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="SCANNING" Style="{DynamicResource CardCaption}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Scan timer"
+                                       Style="{DynamicResource BodyText}" TextWrapping="Wrap" />
+                            <ComboBox Grid.Column="1" MinWidth="160"
+                                      ItemsSource="{Binding ScanIntervalChoices}"
+                                      SelectedItem="{Binding SelectedScanInterval, Mode=TwoWay}"
+                                      SelectionChanged="OnScanIntervalChanged" />
+                        </Grid>
+
+                        <TextBlock Text="How often the app scans for changes in activity, power source and power plans. Shorter notices changes faster."
+                                   FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SecondaryText}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- General -->
+                <Border Style="{DynamicResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="GENERAL" Style="{DynamicResource CardCaption}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Start with Windows"
+                                       Style="{DynamicResource BodyText}" />
+                            <CheckBox Grid.Column="1" IsChecked="{Binding StartWithWindows, Mode=TwoWay}"
+                                      Click="OnAutoStartChanged" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="Changes apply straight away."
+                       Style="{DynamicResource BodyText}"
+                       VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="Open log" Click="OnOpenLog" Margin="0,0,8,0" Padding="14,5" />
+                <Button Content="Force auto" Click="OnForceAuto" Padding="14,5" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

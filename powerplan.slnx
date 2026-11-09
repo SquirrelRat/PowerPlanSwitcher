@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PowerPlanSwitcher.Core/PowerPlanSwitcher.Core.csproj" />
+    <Project Path="src/PowerPlanSwitcher/PowerPlanSwitcher.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PowerPlanSwitcher.Core.Tests/PowerPlanSwitcher.Core.Tests.csproj" />
+  </Folder>
+</Solution>

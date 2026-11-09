@@ -1,0 +1,34 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore powerplan.slnx
+      - run: dotnet build powerplan.slnx -c Release --no-restore
+      - run: dotnet test powerplan.slnx -c Release --no-build
+      - name: Publish
+        run: dotnet publish src/PowerPlanSwitcher/PowerPlanSwitcher.csproj -c Release -p:DebugType=None -p:DebugSymbols=false -o publish
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash publish/PowerPlanSwitcher.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  PowerPlanSwitcher.exe" | Set-Content publish/PowerPlanSwitcher.exe.sha256
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            publish/PowerPlanSwitcher.exe
+            publish/PowerPlanSwitcher.exe.sha256
+          generate_release_notes: true
