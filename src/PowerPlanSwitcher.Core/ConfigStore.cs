@@ -5,8 +5,8 @@ using System.Text.Json.Serialization;
 namespace PowerPlanSwitcher.Core;
 
 /// <summary>
-/// Reads and writes the settings file. Never throws: a broken file
-/// degrades to defaults and is reported, not fatal.
+/// Reads and writes the settings file. A broken file or a single wrong-typed
+/// field degrades to defaults and is reported, never fatal.
 /// </summary>
 public sealed class ConfigStore
 {
@@ -19,6 +19,38 @@ public sealed class ConfigStore
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
+    };
+
+    private static readonly JsonDocumentOptions DocumentOptions = new()
+    {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
+
+    private static readonly string[] KnownRootFields =
+    {
+        "version",
+        "rules",
+        "idle",
+        "startWithWindows",
+        "scanIntervalSeconds",
+    };
+
+    private static readonly string[] KnownRuleFields =
+    {
+        "acActive",
+        "acIdle",
+        "batteryActive",
+        "batteryIdle",
+        "active",
+        "idle",
+    };
+
+    private static readonly string[] KnownIdleFields =
+    {
+        "inputTimeoutMinutes",
+        "onScreensaver",
+        "onLock",
     };
 
     private readonly string _directory;
@@ -68,11 +100,16 @@ public sealed class ConfigStore
             var json = File.ReadAllText(path);
             return FromJson(json);
         }
-        catch (Exception ex)
+        catch (JsonException ex)
         {
+            // Only malformed JSON is quarantined. An IO error is not the file's fault.
             var defaults = UseDefaults(ex);
             TryRenameToBad(path);
             return defaults;
+        }
+        catch (Exception ex)
+        {
+            return UseDefaults(ex);
         }
     }
 
@@ -82,7 +119,7 @@ public sealed class ConfigStore
         return AppConfig.CreateDefault();
     }
 
-    public void Save(AppConfig config)
+    public bool Save(AppConfig config)
     {
         string path;
         string tempPath;
@@ -94,7 +131,7 @@ public sealed class ConfigStore
         catch (Exception ex)
         {
             ReportProblem($"Settings could not be saved. Details: {ex.Message}");
-            return;
+            return false;
         }
 
         try
@@ -111,201 +148,272 @@ public sealed class ConfigStore
             {
                 File.Move(tempPath, path);
             }
+
+            return true;
         }
         catch (Exception ex)
         {
             ReportProblem($"Settings could not be saved. Details: {ex.Message}");
             TryDeleteTemp(tempPath);
+            return false;
         }
     }
 
-    internal static AppConfig FromJson(string json)
+    private AppConfig FromJson(string json)
     {
-        var dto = JsonSerializer.Deserialize<AppConfigDto>(json, SerializerOptions)
-            ?? new AppConfigDto();
+        using JsonDocument document = JsonDocument.Parse(json, DocumentOptions);
+        JsonElement root = document.RootElement;
 
-        // Every field falls back to its own default: one null or missing
-        // field must never reset the unrelated settings.
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("The settings file must contain a JSON object.");
+        }
+
         var config = AppConfig.CreateDefault();
+        var problems = new List<string>();
 
-        if (dto.StartWithWindows.HasValue)
+        if (TryGet(root, "version", out JsonElement version) &&
+            version.ValueKind != JsonValueKind.Null)
         {
-            config.StartWithWindows = dto.StartWithWindows.Value;
-        }
-
-        if (dto.ScanIntervalSeconds.HasValue)
-        {
-            config.ScanIntervalSeconds = dto.ScanIntervalSeconds.Value;
-        }
-
-        if (dto.Rules is not null && dto.Rules.Value.ValueKind != JsonValueKind.Null)
-        {
-            config.Rules = ParseRules(dto.Rules.Value, config.Rules);
-        }
-
-        if (dto.Idle is not null)
-        {
-            if (dto.Idle.InputTimeoutMinutes.HasValue)
+            if (version.ValueKind == JsonValueKind.Number && version.TryGetInt32(out int value))
             {
-                config.Idle.InputTimeoutMinutes = dto.Idle.InputTimeoutMinutes.Value;
+                config.Version = value;
             }
-
-            if (dto.Idle.OnScreensaver.HasValue)
+            else
             {
-                config.Idle.OnScreensaver = dto.Idle.OnScreensaver.Value;
-            }
-
-            if (dto.Idle.OnLock.HasValue)
-            {
-                config.Idle.OnLock = dto.Idle.OnLock.Value;
+                problems.Add("version");
             }
         }
 
-        // Preserve the on-disk version as a migration signal; default when absent.
-        config.Version = dto.Version ?? AppConfig.CurrentVersion;
-        config.ExtensionData = dto.ExtensionData;
+        if (TryGet(root, "startWithWindows", out JsonElement start) &&
+            start.ValueKind != JsonValueKind.Null)
+        {
+            if (start.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                config.StartWithWindows = start.GetBoolean();
+            }
+            else
+            {
+                problems.Add("startWithWindows");
+            }
+        }
+
+        if (TryGet(root, "scanIntervalSeconds", out JsonElement scan) &&
+            scan.ValueKind != JsonValueKind.Null)
+        {
+            if (scan.ValueKind == JsonValueKind.Number && scan.TryGetInt32(out int seconds))
+            {
+                config.ScanIntervalSeconds = seconds;
+            }
+            else
+            {
+                problems.Add("scanIntervalSeconds");
+            }
+        }
+
+        if (TryGet(root, "rules", out JsonElement rules) &&
+            rules.ValueKind != JsonValueKind.Null)
+        {
+            if (rules.ValueKind == JsonValueKind.Object)
+            {
+                config.Rules = ParseRules(rules, problems);
+            }
+            else
+            {
+                problems.Add("rules");
+            }
+        }
+
+        if (TryGet(root, "idle", out JsonElement idle) &&
+            idle.ValueKind != JsonValueKind.Null)
+        {
+            if (idle.ValueKind == JsonValueKind.Object)
+            {
+                ParseIdle(idle, config.Idle, problems);
+            }
+            else
+            {
+                problems.Add("idle");
+            }
+        }
+
+        config.ExtensionData = ReadUnknown(root, KnownRootFields);
+
+        if (problems.Count > 0)
+        {
+            ReportProblem(
+                "Some settings had the wrong type and were reset to defaults: " +
+                string.Join(", ", problems) + ". The other settings were kept.");
+        }
+
+        if (config.Version > AppConfig.CurrentVersion)
+        {
+            ReportProblem(
+                $"The settings file was written by a newer version (schema {config.Version}). " +
+                "Known settings loaded; unknown fields are kept.");
+        }
+
         return config;
     }
 
-    private static PlanRules ParseRules(JsonElement rulesElement, PlanRules defaults)
+    private static PlanRules ParseRules(JsonElement rules, List<string> problems)
     {
-        if (rulesElement.ValueKind != JsonValueKind.Object)
-        {
-            return defaults;
-        }
-
-        var result = new PlanRules
-        {
-            AcActive = defaults.AcActive,
-            AcIdle = defaults.AcIdle,
-            BatteryActive = defaults.BatteryActive,
-            BatteryIdle = defaults.BatteryIdle,
-        };
+        var result = new PlanRules();
 
         // Flat shape (what we write): acActive / acIdle / batteryActive / batteryIdle.
-        TryParseGuidCell(rulesElement, "acActive", v => result.AcActive = v);
-        TryParseGuidCell(rulesElement, "acIdle", v => result.AcIdle = v);
-        TryParseGuidCell(rulesElement, "batteryActive", v => result.BatteryActive = v);
-        TryParseGuidCell(rulesElement, "batteryIdle", v => result.BatteryIdle = v);
+        TryParseGuidCell(rules, "acActive", "rules.acActive", problems, v => result.AcActive = v);
+        TryParseGuidCell(rules, "acIdle", "rules.acIdle", problems, v => result.AcIdle = v);
+        TryParseGuidCell(rules, "batteryActive", "rules.batteryActive", problems, v => result.BatteryActive = v);
+        TryParseGuidCell(rules, "batteryIdle", "rules.batteryIdle", problems, v => result.BatteryIdle = v);
 
-        // Nested spec shape (§9): rules.active.ac, rules.active.battery, rules.idle.ac, rules.idle.battery.
-        if (TryGetObject(rulesElement, "active", out JsonElement active))
+        // Nested shape: rules.active.ac / rules.active.battery and rules.idle.*.
+        // Nested values win when a file contains both shapes.
+        if (TryGet(rules, "active", out JsonElement active) && active.ValueKind == JsonValueKind.Object)
         {
-            TryParseGuidCell(active, "ac", v => result.AcActive = v);
-            TryParseGuidCell(active, "battery", v => result.BatteryActive = v);
+            TryParseGuidCell(active, "ac", "rules.active.ac", problems, v => result.AcActive = v);
+            TryParseGuidCell(active, "battery", "rules.active.battery", problems, v => result.BatteryActive = v);
         }
 
-        if (TryGetObject(rulesElement, "idle", out JsonElement idle))
+        if (TryGet(rules, "idle", out JsonElement idle) && idle.ValueKind == JsonValueKind.Object)
         {
-            TryParseGuidCell(idle, "ac", v => result.AcIdle = v);
-            TryParseGuidCell(idle, "battery", v => result.BatteryIdle = v);
+            TryParseGuidCell(idle, "ac", "rules.idle.ac", problems, v => result.AcIdle = v);
+            TryParseGuidCell(idle, "battery", "rules.idle.battery", problems, v => result.BatteryIdle = v);
         }
 
+        result.ExtensionData = ReadUnknown(rules, KnownRuleFields);
         return result;
+    }
 
-        static void TryParseGuidCell(
-            JsonElement obj,
-            string name,
-            Action<Guid?> assign)
+    private static void ParseIdle(JsonElement idle, IdleSettings target, List<string> problems)
+    {
+        if (TryGet(idle, "inputTimeoutMinutes", out JsonElement timeout) &&
+            timeout.ValueKind != JsonValueKind.Null)
         {
-            if (!TryGetPropertyCaseInsensitive(obj, name, out JsonElement cell))
+            if (timeout.ValueKind == JsonValueKind.Number && timeout.TryGetInt32(out int minutes))
             {
-                return;
+                target.InputTimeoutMinutes = minutes;
             }
+            else
+            {
+                problems.Add("idle.inputTimeoutMinutes");
+            }
+        }
 
-            if (cell.ValueKind == JsonValueKind.Null || cell.ValueKind == JsonValueKind.Undefined)
+        if (TryGet(idle, "onScreensaver", out JsonElement screensaver) &&
+            screensaver.ValueKind != JsonValueKind.Null)
+        {
+            if (screensaver.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                target.OnScreensaver = screensaver.GetBoolean();
+            }
+            else
+            {
+                problems.Add("idle.onScreensaver");
+            }
+        }
+
+        if (TryGet(idle, "onLock", out JsonElement locked) &&
+            locked.ValueKind != JsonValueKind.Null)
+        {
+            if (locked.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                target.OnLock = locked.GetBoolean();
+            }
+            else
+            {
+                problems.Add("idle.onLock");
+            }
+        }
+
+        target.ExtensionData = ReadUnknown(idle, KnownIdleFields);
+    }
+
+    private static void TryParseGuidCell(
+        JsonElement parent,
+        string name,
+        string problemName,
+        List<string> problems,
+        Action<Guid?> assign)
+    {
+        if (!TryGet(parent, name, out JsonElement cell))
+        {
+            return;
+        }
+
+        if (cell.ValueKind == JsonValueKind.Null || cell.ValueKind == JsonValueKind.Undefined)
+        {
+            assign(null);
+            return;
+        }
+
+        if (cell.ValueKind == JsonValueKind.String)
+        {
+            string? text = cell.GetString();
+            if (string.IsNullOrWhiteSpace(text))
             {
                 assign(null);
                 return;
             }
 
-            if (cell.ValueKind == JsonValueKind.String)
+            if (Guid.TryParse(text, out Guid parsed) && parsed != Guid.Empty)
             {
-                string? text = cell.GetString();
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    assign(null);
-                    return;
-                }
-
-                if (Guid.TryParse(text, out Guid parsed) && parsed != Guid.Empty)
-                {
-                    assign(parsed);
-                }
-                else
-                {
-                    // One bad cell degrades to unset, never to a whole-file reset.
-                    assign(null);
-                }
-
-                return;
+                assign(parsed);
+            }
+            else
+            {
+                // One bad cell degrades to unset, never to a whole-file reset.
+                assign(null);
+                problems.Add(problemName);
             }
 
-            // Unexpected kind: leave the default for this cell.
+            return;
         }
+
+        // A number or object where a GUID string belongs is a typo, not a plan.
+        assign(null);
+        problems.Add(problemName);
     }
 
-    private static bool TryGetObject(JsonElement parent, string name, out JsonElement child)
+    private static Dictionary<string, JsonElement>? ReadUnknown(
+        JsonElement parent,
+        params string[] known)
     {
-        child = default;
-        if (!TryGetPropertyCaseInsensitive(parent, name, out JsonElement found))
+        var knownSet = new HashSet<string>(known, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, JsonElement>? unknown = null;
+
+        foreach (JsonProperty property in parent.EnumerateObject())
         {
-            return false;
+            if (knownSet.Contains(property.Name))
+            {
+                continue;
+            }
+
+            unknown ??= new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+            unknown[property.Name] = property.Value.Clone();
         }
 
-        if (found.ValueKind != JsonValueKind.Object)
-        {
-            return false;
-        }
-
-        child = found;
-        return true;
+        return unknown;
     }
 
-    private static bool TryGetPropertyCaseInsensitive(JsonElement parent, string name, out JsonElement value)
+    private static bool TryGet(JsonElement parent, string name, out JsonElement value)
     {
         value = default;
+
         if (parent.ValueKind != JsonValueKind.Object)
         {
             return false;
         }
 
-        foreach (JsonProperty prop in parent.EnumerateObject())
+        foreach (JsonProperty property in parent.EnumerateObject())
         {
-            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
             {
-                value = prop.Value;
+                value = property.Value;
                 return true;
             }
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// Deserialization shape with every scalar nullable, so a single null
-    /// field degrades to its default instead of failing the whole file.
-    /// Rules stays a raw element so one bad GUID cell degrades to unset
-    /// instead of failing the whole file, and both the flat shape we write
-    /// (acActive) and the nested spec shape (§9: active.ac) are accepted.
-    /// </summary>
-    private sealed class AppConfigDto
-    {
-        public int? Version { get; set; }
-        public JsonElement? Rules { get; set; }
-        public IdleSettingsDto? Idle { get; set; }
-        public bool? StartWithWindows { get; set; }
-        public int? ScanIntervalSeconds { get; set; }
-
-        [JsonExtensionData]
-        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
-    }
-
-    private sealed class IdleSettingsDto
-    {
-        public int? InputTimeoutMinutes { get; set; }
-        public bool? OnScreensaver { get; set; }
-        public bool? OnLock { get; set; }
     }
 
     internal static string ToJson(AppConfig config) =>

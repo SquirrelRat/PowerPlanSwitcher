@@ -1,5 +1,8 @@
 namespace PowerPlanSwitcher.Core;
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 /// <summary>
 /// When the machine should be considered idle.
 /// </summary>
@@ -25,4 +28,11 @@ public sealed class IdleSettings
 
     /// <summary>Count a locked workstation as idle, immediately.</summary>
     public bool OnLock { get; set; } = true;
+
+    /// <summary>
+    /// Fields from newer versions that this version does not understand.
+    /// Carried through untouched so a downgrade never destroys them.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

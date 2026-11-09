@@ -15,9 +15,6 @@ public sealed class AppState
     /// <summary>The plan the app forced, or null in Auto mode.</summary>
     public Guid? ForcedPlan { get; set; }
 
-    /// <summary>Which tray role produced <see cref="ForcedPlan"/>, or null in Auto mode.</summary>
-    public PlanRole? ForcedRole { get; set; }
-
     /// <summary>The plan the OS reports as active right now.</summary>
     public PowerPlanInfo? ActivePlan { get; set; }
 
@@ -26,11 +23,26 @@ public sealed class AppState
 
     public DateTimeOffset LastChanged { get; set; } = DateTimeOffset.Now;
 
+    /// <summary>When the last poll finished, successful or not.</summary>
+    public DateTimeOffset LastChecked { get; set; }
+
+    public bool HasBattery { get; set; } = true;
+
+    /// <summary>True while the user has paused switching for this session.</summary>
+    public bool Paused { get; private set; }
+
+    /// <summary>Null with <see cref="Paused"/> means "until restart".</summary>
+    public DateTimeOffset? PausedUntil { get; private set; }
+
     /// <summary>The last problem worth showing the user, or null.</summary>
     public string? LastProblem { get; set; }
 
-    /// <summary>What kind of problem <see cref="LastProblem"/> is, if any. Tracked separately so rewording the text cannot pin a stale error.</summary>
+    /// <summary>What kind of problem <see cref="LastProblem"/> is, if any.</summary>
     public ProblemKind? LastProblemKind { get; set; }
+
+    private readonly List<SwitchRecord> _history = new();
+
+    public IReadOnlyList<SwitchRecord> History => _history;
 
     public event Action? Changed;
 
@@ -49,10 +61,44 @@ public sealed class AppState
     public PowerPlanInfo? FindPlan(Guid? guid) =>
         guid is null ? null : Plans.FirstOrDefault(p => p.Guid == guid.Value);
 
-    /// <summary>Clears a switch-related problem, leaving other problems alone.</summary>
+    public void Pause(TimeSpan? duration)
+    {
+        if (duration is not null && duration.Value <= TimeSpan.Zero)
+        {
+            Resume();
+            return;
+        }
+
+        Paused = true;
+        PausedUntil = duration is null ? null : DateTimeOffset.Now.Add(duration.Value);
+    }
+
+    public void Resume()
+    {
+        Paused = false;
+        PausedUntil = null;
+    }
+
+    public bool IsPauseExpired(DateTimeOffset now) =>
+        Paused && PausedUntil is not null && PausedUntil.Value <= now;
+
+    public void AddHistory(SwitchRecord record)
+    {
+        _history.Add(record);
+
+        if (_history.Count > 20)
+        {
+            _history.RemoveAt(0);
+        }
+    }
+
+    /// <summary>Clears a switch-related problem, leaving settings and load problems alone.</summary>
     public void ClearSwitchProblemOnly()
     {
-        if (LastProblemKind is not null)
+        if (LastProblemKind is ProblemKind.TransientCheck
+            or ProblemKind.TargetMissing
+            or ProblemKind.SwitchFailed
+            or ProblemKind.PowerSourceUnknown)
         {
             LastProblem = null;
             LastProblemKind = null;
@@ -63,23 +109,43 @@ public sealed class AppState
     public string GetChangeSignature() => string.Join(
         "|",
         Plans.Count,
-        string.Join(",", Plans.Select(p => p.Guid)),
+        string.Join(",", Plans.Select(p => p.Guid + ":" + p.Name)),
         ActivePlan?.Guid.ToString() ?? "none",
+        ActivePlan?.Name ?? "",
         Target?.PlanGuid?.ToString() ?? "unset",
         Target?.Activity.ToString() ?? "?",
         Target?.PowerSource.ToString() ?? "?",
         Target?.Reason ?? "",
         Target?.Forced.ToString() ?? "",
         ForcedPlan?.ToString() ?? "auto",
-        ForcedRole?.ToString() ?? "",
+        Paused,
+        PausedUntil?.ToString() ?? "",
+        HasBattery,
         LastProblem ?? "",
         LastProblemKind?.ToString() ?? "");
 }
 
-/// <summary>Why <see cref="AppState.LastProblem"/> is set. Kept separate from the text so message edits cannot stick a stale error.</summary>
+/// <summary>One successful switch, kept for the recent-changes list.</summary>
+public sealed record SwitchRecord(
+    DateTimeOffset At,
+    string PlanName,
+    Activity Activity,
+    PowerSource PowerSource,
+    string Reason,
+    bool Forced)
+{
+    public string Summary =>
+        $"{At:HH:mm}  {PlanName}  {Activity.ToString().ToLowerInvariant()}, " +
+        $"{PowerSource.ToString().ToLowerInvariant()}";
+}
+
+/// <summary>Why <see cref="AppState.LastProblem"/> is set.</summary>
 public enum ProblemKind
 {
     TransientCheck,
     TargetMissing,
     SwitchFailed,
+    PowerSourceUnknown,
+    ConfigLoad,
+    SettingsWriteFailed,
 }

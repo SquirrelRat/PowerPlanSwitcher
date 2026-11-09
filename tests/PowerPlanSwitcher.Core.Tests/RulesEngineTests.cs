@@ -114,6 +114,34 @@ public sealed class RulesEngineTests
     }
 
     [Fact]
+    public void UnknownPowerSource_LeavesThePlanAlone()
+    {
+        var target = RulesEngine.Resolve(
+            Snap(TimeSpan.FromSeconds(1), powerSource: PowerSource.Unknown),
+            Settings,
+            new PlanRules(),
+            null);
+
+        Assert.Null(target.PlanGuid);
+        Assert.Equal(PowerSource.Unknown, target.PowerSource);
+        Assert.False(target.Forced);
+        Assert.Equal("power source unknown", target.Reason);
+    }
+
+    [Fact]
+    public void UnknownPowerSource_StillHonoursAForcedPlan()
+    {
+        var target = RulesEngine.Resolve(
+            Snap(TimeSpan.FromSeconds(1), powerSource: PowerSource.Unknown),
+            Settings,
+            new PlanRules(),
+            HighPerformance);
+
+        Assert.Equal(HighPerformance, target.PlanGuid);
+        Assert.True(target.Forced);
+    }
+
+    [Fact]
     public void EmptyForcedGuid_TreatedAsAutomatic()
     {
         var target = RulesEngine.Resolve(

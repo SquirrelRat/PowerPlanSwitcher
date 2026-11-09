@@ -46,8 +46,8 @@ public static class PowerPlanApi
     [DllImport("kernel32.dll", ExactSpelling = true)]
     private static extern IntPtr LocalFree(IntPtr handle);
 
-    /// <summary>Every power plan on this machine, in the OS order.</summary>
-    public static IReadOnlyList<PowerPlanInfo> ListPlans()
+    /// <summary>Every power plan on this machine, or null when enumeration failed.</summary>
+    public static IReadOnlyList<PowerPlanInfo>? ListPlans()
     {
         var plans = new List<PowerPlanInfo>();
 
@@ -76,7 +76,7 @@ public static class PowerPlanApi
 
                     if (result != ErrorSuccess)
                     {
-                        return plans;
+                        return null;
                     }
 
                     var guid = Marshal.PtrToStructure<Guid>(buffer);
@@ -85,7 +85,7 @@ public static class PowerPlanApi
                 }
                 catch (Exception)
                 {
-                    return plans;
+                    return null;
                 }
                 finally
                 {
@@ -95,7 +95,8 @@ public static class PowerPlanApi
         }
         catch (Exception)
         {
-            // Return what we have; callers treat empty as "unknown".
+            // Callers treat null as "the OS call failed", not as "no plans".
+            return null;
         }
 
         return plans;

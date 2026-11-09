@@ -15,12 +15,34 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 9.0.x
       - run: dotnet restore powerplan.slnx
       - run: dotnet build powerplan.slnx -c Release --no-restore
       - run: dotnet test powerplan.slnx -c Release --no-build
+      - name: Read the tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          $numeric = ($version -split "-")[0]
+          if ($numeric -notmatch "^\d+\.\d+\.\d+$") {
+            throw "Tag '$tag' is not a semantic version such as v0.2.0."
+          }
+          "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ASSEMBLY_VERSION=$numeric.0" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Build release notes from the changelog
+        shell: pwsh
+        run: |
+          $version = $env:PACKAGE_VERSION
+          $content = Get-Content CHANGELOG.md -Raw
+          $pattern = "(?ms)^## $([regex]::Escape($version))\r?\n(.*?)(?=^## |\z)"
+          $match = [regex]::Match($content, $pattern)
+          if (-not $match.Success) {
+            throw "CHANGELOG.md has no section for $version."
+          }
+          $match.Groups[1].Value.Trim() | Set-Content release-notes.md -Encoding utf8
       - name: Publish
-        run: dotnet publish src/PowerPlanSwitcher/PowerPlanSwitcher.csproj -c Release -p:DebugType=None -p:DebugSymbols=false -o publish
+        run: dotnet publish src/PowerPlanSwitcher/PowerPlanSwitcher.csproj -c Release -p:DebugType=None -p:DebugSymbols=false -p:Version=$env:PACKAGE_VERSION -p:AssemblyVersion=$env:ASSEMBLY_VERSION -p:FileVersion=$env:ASSEMBLY_VERSION -o publish
       - name: Checksum
         shell: pwsh
         run: |
@@ -28,7 +50,7 @@ jobs:
           "$hash  PowerPlanSwitcher.exe" | Set-Content publish/PowerPlanSwitcher.exe.sha256
       - uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           files: |
             publish/PowerPlanSwitcher.exe
             publish/PowerPlanSwitcher.exe.sha256
-          generate_release_notes: true

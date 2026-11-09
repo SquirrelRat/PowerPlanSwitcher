@@ -6,6 +6,7 @@ using PowerPlanSwitcher.Core;
 using PowerPlanSwitcher.Platform;
 using PowerPlanSwitcher.Services;
 using PowerPlanSwitcher.Settings;
+using MessageBox = System.Windows.MessageBox;
 
 namespace PowerPlanSwitcher;
 
@@ -17,6 +18,7 @@ public partial class App : System.Windows.Application
     private static Mutex? _mutex;
     private static bool _ownsMutex;
     private EventWaitHandle? _showEvent;
+    private volatile bool _shuttingDown;
 
     private SystemProbe? _probe;
     private AppState? _state;
@@ -30,13 +32,9 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        string dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "PowerPlanSwitcher");
-
         try
         {
-            AppLog.Configure(dataDirectory);
+            AppLog.Configure(AppPaths.LogDirectory);
         }
         catch (Exception)
         {
@@ -73,18 +71,13 @@ public partial class App : System.Windows.Application
         {
             _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowWindowEventName);
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        catch (Exception)
         {
             // Second-instance signal degrades to "just exit"; the app still runs.
             _showEvent = null;
         }
-        catch (Exception)
-        {
-            _showEvent = null;
-        }
 
-        bool created;
-        _mutex = AcquireSingleInstance(out created);
+        _mutex = AcquireSingleInstance(out bool created);
         _ownsMutex = created;
 
         if (!created)
@@ -95,12 +88,62 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        try
+        {
+            InitializeApp();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("startup failed: " + ex);
+
+            try
+            {
+                MessageBox.Show(
+                    "Power Plan Switcher could not start.\n\n" +
+                    "The details were written to:\n" + AppPaths.LogDirectory,
+                    "Power Plan Switcher",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            catch (Exception)
+            {
+            }
+
+            Shutdown();
+        }
+    }
+
+    private void InitializeApp()
+    {
         AppLog.Info("starting");
 
-        _configStore = new ConfigStore(dataDirectory);
+        _configStore = new ConfigStore(AppPaths.DataDirectory);
+
+        bool firstRun = false;
+        try
+        {
+            firstRun = !File.Exists(_configStore.SettingsPath);
+        }
+        catch (Exception)
+        {
+        }
 
         string? configProblem = null;
-        _configStore.ProblemReported += m => configProblem = m;
+        _configStore.ProblemReported += message =>
+        {
+            if (_state is null)
+            {
+                configProblem = configProblem is null
+                    ? message
+                    : configProblem + " " + message;
+                return;
+            }
+
+            // A save failure after startup must reach the window, not just the log.
+            _state.LastProblem = message;
+            _state.LastProblemKind = ProblemKind.SettingsWriteFailed;
+            _state.NotifyChanged();
+        };
 
         var config = _configStore.Load();
         if (config.Rules.UnsetSlots.Count > 0)
@@ -109,7 +152,7 @@ public partial class App : System.Windows.Application
         }
 
         var planService = new PowerPlanService();
-        var plans = planService.ListPlans();
+        var plans = planService.ListPlans() ?? Array.Empty<PowerPlanInfo>();
         var active = planService.GetActivePlan();
 
         _probe = new SystemProbe();
@@ -119,9 +162,11 @@ public partial class App : System.Windows.Application
             Config = config,
             Plans = plans,
             ActivePlan = active,
-            // Config-load problems are sticky: LastProblemKind stays null so routine
-            // switch passes never clear them via ClearSwitchProblemOnly.
+            HasBattery = _probe.HasBattery(),
+            // Config-load problems are sticky: LastProblemKind is ConfigLoad so
+            // routine switch passes never clear them.
             LastProblem = configProblem,
+            LastProblemKind = configProblem is null ? null : ProblemKind.ConfigLoad,
         };
 
         _monitor = new PlanMonitor(_probe, _state, planService);
@@ -134,8 +179,11 @@ public partial class App : System.Windows.Application
         });
 
         _tray = new TrayIconManager(_state);
-        _tray.OpenSettingsRequested += () => Dispatcher.Invoke(ShowSettings);
-        _tray.ForceRequested += role => Dispatcher.Invoke(() => SetForcedPlan(role));
+        _tray.OpenSettingsRequested += () => Dispatcher.Invoke(() => ShowSettings());
+        _tray.OpenLogRequested += () => Dispatcher.Invoke(() => ShowSettings(showLog: true));
+        _tray.ForcePlanRequested += plan => Dispatcher.Invoke(() => SetForcedPlan(plan));
+        _tray.PauseRequested += duration => Dispatcher.Invoke(() => PauseSwitching(duration));
+        _tray.ResumeRequested += () => Dispatcher.Invoke(ResumeSwitching);
         _tray.ExitRequested += () => Dispatcher.Invoke(ExitApp);
 
         StartShowWindowListener();
@@ -155,19 +203,35 @@ public partial class App : System.Windows.Application
             autoStart.SetEnabled(false);
         }
 
+        if (firstRun)
+        {
+            _tray.ShowWelcome();
+        }
+
         AppLog.Info("ready");
     }
 
-    private void ShowSettings()
+    private void ShowSettings(bool showLog = false)
     {
         try
         {
+            if (_state is null || _monitor is null)
+            {
+                return;
+            }
+
             if (_settings is null)
             {
-                _settings = new SettingsWindow(_state!, _monitor!, () => SetForcedPlan(null), SaveConfig);
+                _settings = new SettingsWindow(_state, _monitor, SaveConfig);
             }
 
             _settings.Refresh();
+
+            if (showLog)
+            {
+                _settings.ShowLog();
+            }
+
             if (_settings.WindowState == WindowState.Minimized)
             {
                 _settings.WindowState = WindowState.Normal;
@@ -196,7 +260,14 @@ public partial class App : System.Windows.Application
 
         try
         {
-            _configStore?.Save(_state.Config);
+            bool saved = _configStore?.Save(_state.Config) ?? false;
+
+            if (saved && _state.LastProblemKind is ProblemKind.ConfigLoad or ProblemKind.SettingsWriteFailed)
+            {
+                _state.LastProblem = null;
+                _state.LastProblemKind = null;
+                _state.NotifyChanged();
+            }
         }
         catch (Exception ex)
         {
@@ -205,7 +276,7 @@ public partial class App : System.Windows.Application
     }
 
     /// <summary>Null puts the app back on automatic.</summary>
-    private void SetForcedPlan(PlanRole? role)
+    private void SetForcedPlan(Guid? plan)
     {
         if (_state is null || _monitor is null)
         {
@@ -214,28 +285,18 @@ public partial class App : System.Windows.Application
 
         try
         {
-            if (role is null)
+            if (plan is not null && _state.FindPlan(plan) is null)
             {
-                _state.ForcedPlan = null;
-                _state.ForcedRole = null;
-                AppLog.Info("automatic mode restored");
+                AppLog.Warn("cannot force a plan that is not on this PC: " + plan);
+                return;
             }
-            else
-            {
-                // Force pins the well-known plan for that role, not a rule cell:
-                // rule cells move when the user edits them, the role must not.
-                Guid plan = role switch
-                {
-                    PlanRole.Idle => WellKnownPlans.PowerSaver,
-                    PlanRole.Balanced => WellKnownPlans.Balanced,
-                    PlanRole.Boost => WellKnownPlans.HighPerformance,
-                    _ => throw new ArgumentOutOfRangeException(nameof(role)),
-                };
 
-                _state.ForcedPlan = plan;
-                _state.ForcedRole = role;
-                AppLog.Info($"forced plan for role {role}: {plan}");
-            }
+            _state.Resume();
+            _state.ForcedPlan = plan;
+
+            AppLog.Info(plan is null
+                ? "automatic mode restored"
+                : "forced plan: " + plan);
 
             _monitor.RunNow();
         }
@@ -245,11 +306,42 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private void PauseSwitching(TimeSpan? duration)
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        _state.Pause(duration);
+
+        AppLog.Info(duration is null
+            ? "switching paused until restart"
+            : $"switching paused for {duration.Value.TotalMinutes:0} min");
+
+        _state.NotifyChanged();
+    }
+
+    private void ResumeSwitching()
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        _state.Resume();
+        AppLog.Info("switching resumed");
+        _monitor?.RunNow();
+    }
+
     private void ExitApp()
     {
         try
         {
-            _configStore?.Save(_state!.Config);
+            if (_state is not null)
+            {
+                _configStore?.Save(_state.Config);
+            }
         }
         catch (Exception)
         {
@@ -273,60 +365,27 @@ public partial class App : System.Windows.Application
 
         _tray = null;
 
-        ReleaseMutexIfOwned();
-
+        // OnExit releases the mutex after the dispatcher stops. Releasing here
+        // would let a fast relaunch exit while this process is still tearing down.
         Shutdown();
     }
 
     /// <summary>
-    /// Takes the single-instance mutex. A previous instance that died without
-    /// releasing leaves it abandoned; that still means "ours now", not a crash.
-    /// Only the creator owns the mutex; a second instance must never release it.
+    /// Takes the single-instance mutex. Creating a mutex does not raise
+    /// AbandonedMutexException; a dead owner's object is simply gone.
     /// </summary>
     private static Mutex AcquireSingleInstance(out bool created)
     {
         created = false;
+
         try
         {
             return new Mutex(initiallyOwned: true, SingleInstanceName, out created);
         }
-        catch (AbandonedMutexException ex)
-        {
-            // The previous owner died without releasing. We own it now.
-            created = true;
-            if (ex.Mutex is not null)
-            {
-                return ex.Mutex;
-            }
-
-            try
-            {
-                var existing = Mutex.OpenExisting(SingleInstanceName);
-                try
-                {
-                    existing.WaitOne(0);
-                }
-                catch (AbandonedMutexException)
-                {
-                    // We now own the abandoned mutex.
-                }
-                catch (Exception)
-                {
-                }
-
-                created = true;
-                return existing;
-            }
-            catch (Exception)
-            {
-                return new Mutex(initiallyOwned: true, SingleInstanceName, out created);
-            }
-        }
         catch (Exception)
         {
-            // Mutex creation failed (e.g. security). Fall back to an unowned
+            // Mutex creation failed (e.g. security). Fall back to an existing
             // handle so this instance exits as the "second" one.
-            created = false;
             try
             {
                 return Mutex.OpenExisting(SingleInstanceName);
@@ -337,6 +396,7 @@ public partial class App : System.Windows.Application
             }
         }
     }
+
     private static void SignalShowWindow()
     {
         try
@@ -361,15 +421,24 @@ public partial class App : System.Windows.Application
         {
             try
             {
-                while (true)
+                while (!_shuttingDown)
                 {
                     _showEvent.WaitOne();
-                    Dispatcher.Invoke(ShowSettings);
+
+                    if (_shuttingDown)
+                    {
+                        break;
+                    }
+
+                    Dispatcher.Invoke(() => ShowSettings());
                 }
             }
             catch (Exception ex)
             {
-                AppLog.Error("show-window listener stopped: " + ex);
+                if (!_shuttingDown)
+                {
+                    AppLog.Error("show-window listener stopped: " + ex);
+                }
             }
         })
         {
@@ -382,6 +451,24 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _shuttingDown = true;
+
+        try
+        {
+            _showEvent?.Set();
+        }
+        catch (Exception)
+        {
+        }
+
+        try
+        {
+            _showWindowThread?.Join(1000);
+        }
+        catch (Exception)
+        {
+        }
+
         try
         {
             _probe?.Dispose();

@@ -12,7 +12,7 @@ public sealed class AppConfig
     public const int MinScanIntervalSeconds = 1;
     public const int MaxScanIntervalSeconds = 60;
 
-    private bool _startWithWindows = true;
+    private bool _startWithWindows;
     private int _scanIntervalSeconds = DefaultScanIntervalSeconds;
 
     /// <summary>Bumped when the on-disk shape changes in a breaking way.</summary>

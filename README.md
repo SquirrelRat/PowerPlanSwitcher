@@ -3,6 +3,8 @@
 A Windows tray app that switches the active power plan when you go idle, come
 back, or unplug the charger.
 
+Version 0.2.0.
+
 ## Download
 
 Take `PowerPlanSwitcher.exe` from [Releases](../../releases). Install the
@@ -13,10 +15,10 @@ Windows x64 first, then run the exe. It stays in the notification area.
 
 <p align="center">
   <img src="docs/images/settings-top.png" width="300" alt="Settings window showing status and the plan matrix">
-  <img src="docs/images/settings-bottom.png" width="300" alt="Settings window showing idle detection, scanning and startup">
+  <img src="docs/images/settings-bottom.png" width="300" alt="Settings window showing scanning, general settings, and recent changes">
 </p>
 <p align="center">
-  <img src="docs/images/tray-menu.png" width="260" alt="Tray menu with Auto and Force options">
+  <img src="docs/images/tray-menu.png" width="260" alt="Tray menu with Automatic, Force plan, Pause, and Exit">
 </p>
 
 ## What it does
@@ -26,19 +28,26 @@ Windows x64 first, then run the exe. It stays in the notification area.
   the power source (`GetSystemPowerStatus`).
 - Maps the four combinations of activity and power source to existing plans. By
   default, active on AC uses Balanced and the other three use Power saver.
-- Auto mode applies the rules. The tray Force menu pins Power saver, Balanced,
-  or High performance for the current session without saving it.
+- Applies the rules in Automatic mode. Pause stops switching for an hour or until
+  the app restarts.
+- Force plan pins any plan that exists on this PC, including custom plans, for
+  the current session. It does not change the saved rules.
 - Reads the active plan with `PowerGetActiveScheme`, switches with
   `PowerSetActiveScheme`, then reads it back to confirm. A missing plan or an
   unset cell leaves the current plan alone.
+- Leaves the plan alone when Windows cannot report the power source. It does not
+  guess AC.
+- Shows the current mode, the last check time, recent switches, and any problem
+  in the settings window. A failure is not left to a tray balloon alone.
+- Keeps one log file per day and shows them in a log pane.
 
 ## Requirements
 
 - Windows 10 or 11 on x64.
 - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) to
   run the release build. Newer desktop runtimes work too.
-- To build: .NET 8 SDK. The app targets `net8.0-windows` and rolls forward to
-  newer desktop runtimes.
+- To build: .NET SDK 9.0.200 or newer. The solution uses `powerplan.slnx`, and
+  the .NET 8 SDK cannot read that format. .NET 10 works too.
 
 ## Build from source
 
@@ -50,6 +59,26 @@ dotnet publish src/PowerPlanSwitcher/PowerPlanSwitcher.csproj -c Release
 
 Publish writes one exe. Add `-p:SelfContained=true` for a portable build that
 bundles the runtime.
+
+`global.json` requests SDK 9.0.200 and rolls forward, so a newer installed SDK
+also works.
+
+## Settings
+
+- Start with Windows is off on a new install. Turn it on under General.
+- Changes save as soon as you make them.
+- Show log opens a pane beside the settings. It lists one file per day, refreshes
+  the selected file while Live is on, and has buttons to open the file or folder
+  and copy the text.
+- The pane follows the newest line unless you scroll up.
+- Copy diagnostics puts the version, OS, runtime, plan list, settings and log
+  paths, the last problem, and 40 log lines on the clipboard. Nothing leaves the
+  PC.
+- A plan that is no longer installed shows as Missing plan. Pick another plan or
+  Not set.
+- Force disables the rules grid until you press Return to automatic.
+- The tray menu has Automatic, Force plan, Pause, Resume, Show log, Open log
+  folder, and Exit.
 
 ## Configuration
 
@@ -68,35 +97,62 @@ file.
   },
   "idle": { "inputTimeoutMinutes": 5, "onScreensaver": true, "onLock": true },
   "scanIntervalSeconds": 2,
-  "startWithWindows": true
+  "startWithWindows": false
 }
 ```
 
 The app also accepts the nested shape (`rules.active.ac`, `rules.idle.battery`).
-A bad GUID marks that cell unset instead of resetting the file. A corrupt file
-is renamed to `settings.json.bad`. Fields the app does not know survive a round
-trip. Idle time clamps to 1 to 120 minutes and the scan interval to 1 to 60
-seconds.
+Nested values win when a file contains both shapes. A bad GUID marks that cell
+unset and reports it. A rule cell with a number where a GUID belongs is unset
+too. A wrong JSON type on a scalar field resets that field to its default and
+reports the field; the rest of the file is kept. Fields the app does not know
+survive a save at the top level and in the `rules` and `idle` sections. Idle time
+clamps to 1 to 120 minutes and the scan interval to 1 to 60 seconds.
 
-The log is `%LocalAppData%\PowerPlanSwitcher\app.log`. It rolls at 1 MB and
-keeps one previous file.
+The log is one file per day at
+`%LocalAppData%\PowerPlanSwitcher\logs\app-YYYY-MM-DD.log`. The app keeps 14
+days. A day's file rolls at 5 MB and keeps one `.1` part. The old `app.log` is no
+longer written.
 
 ## Manual checklist
 
 These tests need Windows 10 or 11 with both AC and battery available.
 
 1. Leave the PC idle past the timeout. The plan changes to Power saver.
-2. Move the mouse. It changes back within two seconds.
+2. Move the mouse. It changes back within the scan interval.
 3. Start the screensaver. The change is immediate.
 4. Press Win+L, then unlock. The plan changes in both directions.
 5. Unplug and replug the charger. The plan follows the battery and AC cells.
-6. Pick a plan from Force, restart the app, then check that it returns to Auto.
-7. Delete a plan the app points at. The cell shows "Not set" and the app keeps
-   running.
-8. Toggle Start with Windows. Check the Run key.
-9. Launch the app twice. One tray icon appears and the second process exits.
-10. Corrupt `settings.json`. The app starts with defaults and writes
+6. Pick a plan from Force, including a custom plan, then press Return to
+   automatic. The grid is disabled while the plan is forced.
+7. Pause for 1 hour, then change the plan in Windows Settings. The app leaves it
+   alone until you press Resume.
+8. Delete a plan the app points at. The cell shows Missing plan and the status
+   card shows the warning. Pick another plan or Not set.
+9. Toggle Start with Windows. Check the Run key under HKCU.
+10. Launch the app twice. One tray icon appears and the first copy shows its
+    settings window.
+11. Corrupt `settings.json`. The app starts with defaults and writes
     `settings.json.bad`.
+12. Put a string in `scanIntervalSeconds`. The other settings load, the interval
+    uses its default, and the status card reports the field.
+13. Open the log pane. It lists the daily files. Press Refresh after midnight to
+    see the new day. Live updates the selected file.
+14. Copy diagnostics and paste it into a text file. It includes the version and
+    the last 40 log lines.
+15. On a desktop with no battery, the On battery column is hidden.
+
+## Uninstall
+
+1. Exit from the tray menu.
+2. Delete the `PowerPlanSwitcher` value under
+   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` if it is present.
+3. Delete `%LocalAppData%\PowerPlanSwitcher`.
+
+## Privacy
+
+The app makes no network calls and has no telemetry or account. Settings and
+logs stay under `%LocalAppData%\PowerPlanSwitcher`.
 
 ## License
 

@@ -15,10 +15,12 @@ internal static class TrayIcons
     private static readonly Color IdleFill = Color.FromArgb(0xB2, 0x6A, 0x00);
     private static readonly Color ActiveFill = Color.FromArgb(0x00, 0x6B, 0x2B);
     private static readonly Color BoostFill = Color.FromArgb(0xB0, 0x22, 0x22);
+    private static readonly Color PausedFill = Color.FromArgb(0x5A, 0x5D, 0x66);
 
     private static readonly Lazy<Icon> IdleLazy = new(() => Build(IdleFill, GlyphKind.Moon));
     private static readonly Lazy<Icon> ActiveLazy = new(() => Build(ActiveFill, GlyphKind.Bars));
     private static readonly Lazy<Icon> BoostLazy = new(() => Build(BoostFill, GlyphKind.Bolt));
+    private static readonly Lazy<Icon> PausedLazy = new(() => Build(PausedFill, GlyphKind.Pause));
 
     public static Icon Idle => IdleLazy.Value;
 
@@ -26,11 +28,14 @@ internal static class TrayIcons
 
     public static Icon Boost => BoostLazy.Value;
 
+    public static Icon Paused => PausedLazy.Value;
+
     private enum GlyphKind
     {
         Moon,
         Bars,
         Bolt,
+        Pause,
     }
 
     [DllImport("user32.dll", ExactSpelling = true)]
@@ -62,6 +67,9 @@ internal static class TrayIcons
                     break;
                 case GlyphKind.Bolt:
                     DrawBolt(graphics);
+                    break;
+                case GlyphKind.Pause:
+                    DrawPause(graphics);
                     break;
             }
         }
@@ -135,5 +143,13 @@ internal static class TrayIcons
 
         path.AddPolygon(points);
         graphics.FillPath(brush, path);
+    }
+
+    private static void DrawPause(Graphics graphics)
+    {
+        using var brush = new SolidBrush(Color.White);
+
+        graphics.FillRectangle(brush, 11, 9, 4, 14);
+        graphics.FillRectangle(brush, 18, 9, 4, 14);
     }
 }

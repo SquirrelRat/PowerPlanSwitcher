@@ -4,6 +4,7 @@
     <Project Path="src/PowerPlanSwitcher/PowerPlanSwitcher.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/PowerPlanSwitcher.App.Tests/PowerPlanSwitcher.App.Tests.csproj" />
     <Project Path="tests/PowerPlanSwitcher.Core.Tests/PowerPlanSwitcher.Core.Tests.csproj" />
   </Folder>
 </Solution>

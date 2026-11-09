@@ -11,6 +11,12 @@ public sealed class AppConfigTests
         Assert.Equal(2, new AppConfig().ScanIntervalSeconds);
     }
 
+    [Fact]
+    public void StartWithWindows_DefaultsToOff()
+    {
+        Assert.False(new AppConfig().StartWithWindows);
+    }
+
     [Theory]
     [InlineData(0, 1)]
     [InlineData(-30, 1)]

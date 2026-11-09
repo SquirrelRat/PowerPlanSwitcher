@@ -12,11 +12,16 @@ public static class PowerSourceClassifier
     {
         const byte NoSystemBatteryFlag = 128;
 
-        if ((batteryFlag & NoSystemBatteryFlag) != 0)
+        if (batteryFlag != 255 && (batteryFlag & NoSystemBatteryFlag) != 0)
         {
             return PowerSource.Ac;
         }
 
-        return acLineStatus == 0 ? PowerSource.Battery : PowerSource.Ac;
+        return acLineStatus switch
+        {
+            0 => PowerSource.Battery,
+            1 => PowerSource.Ac,
+            _ => PowerSource.Unknown,
+        };
     }
 }

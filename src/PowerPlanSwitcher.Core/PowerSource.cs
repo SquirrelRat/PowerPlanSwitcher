@@ -5,4 +5,7 @@ public enum PowerSource
 {
     Ac,
     Battery,
+
+    /// <summary>The OS could not say. Leave the active plan alone.</summary>
+    Unknown,
 }

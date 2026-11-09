@@ -8,19 +8,26 @@ namespace PowerPlanSwitcher.Services;
 /// Runs the app loop: watch the machine, decide, apply. A single
 /// DispatcherTimer on the UI thread means no cross-thread state at all.
 /// </summary>
-public sealed class PlanMonitor : IDisposable
+public sealed class PlanMonitor : IPlanMonitor, IDisposable
 {
-    private readonly SystemProbe _probe;
+    private readonly ISystemProbe _probe;
     private readonly AppState _state;
-    private readonly PowerPlanService _plans;
+    private readonly IPowerPlanService _plans;
+    private readonly Func<DateTimeOffset> _now;
     private readonly DispatcherTimer _timer;
     private string? _lastNotifiedSignature;
+    private string? _loggedProblemKey;
 
-    public PlanMonitor(SystemProbe probe, AppState state, PowerPlanService plans)
+    public PlanMonitor(
+        ISystemProbe probe,
+        AppState state,
+        IPowerPlanService plans,
+        Func<DateTimeOffset>? now = null)
     {
         _probe = probe;
         _state = state;
         _plans = plans;
+        _now = now ?? (() => DateTimeOffset.Now);
 
         _timer = new DispatcherTimer(
             TimeSpan.FromSeconds(_state.Config.ScanIntervalSeconds),
@@ -40,8 +47,9 @@ public sealed class PlanMonitor : IDisposable
         catch (Exception ex)
         {
             // UI-triggered passes are not covered by the timer's guard.
-            _state.LastProblem = "A power check failed unexpectedly; will retry automatically.";
-            _state.LastProblemKind = ProblemKind.TransientCheck;
+            SetProblem(
+                ProblemKind.TransientCheck,
+                "A power check failed unexpectedly; will retry automatically.");
             AppLog.Error("run-now failed: " + ex);
             NotifyIfChanged();
         }
@@ -55,7 +63,11 @@ public sealed class PlanMonitor : IDisposable
         }
         catch (Exception ex)
         {
+            SetProblem(
+                ProblemKind.TransientCheck,
+                "A power check failed unexpectedly; will retry automatically.");
             AppLog.Error("poll failed: " + ex);
+            NotifyIfChanged();
         }
     }
 
@@ -74,8 +86,49 @@ public sealed class PlanMonitor : IDisposable
         {
         }
 
-        _state.Plans = _plans.ListPlans();
-        _state.ActivePlan = _plans.GetActivePlan();
+        DateTimeOffset now = _now();
+        _state.LastChecked = now;
+
+        if (_state.Paused)
+        {
+            if (_state.IsPauseExpired(now))
+            {
+                _state.Resume();
+                AppLog.Info("pause ended");
+            }
+            else
+            {
+                NotifyIfChanged();
+                return;
+            }
+        }
+
+        IReadOnlyList<PowerPlanInfo>? plans = _plans.ListPlans();
+        if (plans is null)
+        {
+            SetProblem(
+                ProblemKind.TransientCheck,
+                "Could not read the power plans. Will retry.");
+            LogProblemOnce("plans", "ERROR", "listing power plans failed");
+            NotifyIfChanged();
+            return;
+        }
+
+        _state.Plans = plans;
+
+        PowerPlanInfo? active = _plans.GetActivePlan();
+        if (active is null)
+        {
+            SetProblem(
+                ProblemKind.TransientCheck,
+                "Could not read the active power plan. Will retry.");
+            LogProblemOnce("active", "ERROR", "reading the active power plan failed");
+            NotifyIfChanged();
+            return;
+        }
+
+        _state.ActivePlan = active;
+        _state.HasBattery = _probe.HasBattery();
 
         var snapshot = new SystemSnapshot(
             _probe.GetInputIdleTime(),
@@ -93,8 +146,21 @@ public sealed class PlanMonitor : IDisposable
 
         if (target.PlanGuid is null)
         {
-            // An unset cell means "leave the plan alone", so there is nothing to do.
-            // Do not clear LastProblem here: an unset cell is not a recovery.
+            if (target.PowerSource == PowerSource.Unknown)
+            {
+                SetProblem(
+                    ProblemKind.PowerSourceUnknown,
+                    "Windows could not report the power source, so the plan was left alone.");
+                LogProblemOnce("source", "WARN", "power source unknown, leaving the plan alone");
+            }
+            else
+            {
+                // An unset cell means "leave the plan alone", and it clears any
+                // switch problem caused by the cell that was set before.
+                _state.ClearSwitchProblemOnly();
+                ClearProblemLog();
+            }
+
             NotifyIfChanged();
             return;
         }
@@ -103,10 +169,13 @@ public sealed class PlanMonitor : IDisposable
         {
             // That plan no longer exists on this machine: treat it as an unset
             // cell instead of failing a switch every two seconds.
-            _state.LastProblem =
-                "The planned power plan is no longer on this PC, so nothing was switched.";
-            _state.LastProblemKind = ProblemKind.TargetMissing;
-            AppLog.Warn("target plan missing, leaving the active plan alone: " + target.PlanGuid);
+            SetProblem(
+                ProblemKind.TargetMissing,
+                "The planned power plan is no longer on this PC, so nothing was switched.");
+            LogProblemOnce(
+                "missing:" + target.PlanGuid,
+                "WARN",
+                "target plan missing, leaving the active plan alone: " + target.PlanGuid);
             NotifyIfChanged();
             return;
         }
@@ -114,6 +183,7 @@ public sealed class PlanMonitor : IDisposable
         if (_state.ActivePlan?.Guid == target.PlanGuid.Value)
         {
             _state.ClearSwitchProblemOnly();
+            ClearProblemLog();
             NotifyIfChanged();
             return;
         }
@@ -121,22 +191,60 @@ public sealed class PlanMonitor : IDisposable
         if (_plans.TryApply(target.PlanGuid.Value))
         {
             _state.ActivePlan = _state.FindPlan(target.PlanGuid);
-            _state.LastChanged = DateTimeOffset.Now;
+            _state.LastChanged = now;
+            _state.AddHistory(new SwitchRecord(
+                now,
+                _state.ActivePlan?.Name ?? target.PlanGuid.Value.ToString(),
+                target.Activity,
+                target.PowerSource,
+                target.Reason,
+                target.Forced));
             _state.ClearSwitchProblemOnly();
+            ClearProblemLog();
             AppLog.Info(
                 $"switched to {_state.ActivePlan?.Name ?? target.PlanGuid.Value.ToString()} " +
                 $"({target.Activity}, {target.PowerSource}, {target.Reason})");
         }
         else
         {
-            _state.LastProblem =
-                $"Could not switch to {_state.FindPlan(target.PlanGuid)?.Name ?? target.PlanGuid.Value.ToString()}.";
-            _state.LastProblemKind = ProblemKind.SwitchFailed;
-            AppLog.Error("switch failed for plan " + target.PlanGuid);
+            SetProblem(
+                ProblemKind.SwitchFailed,
+                $"Could not switch to {_state.FindPlan(target.PlanGuid)?.Name ?? target.PlanGuid.Value.ToString()}.");
+            LogProblemOnce(
+                "switch:" + target.PlanGuid,
+                "ERROR",
+                "switch failed for plan " + target.PlanGuid);
         }
 
         NotifyIfChanged();
     }
+
+    private void SetProblem(ProblemKind kind, string message)
+    {
+        _state.LastProblem = message;
+        _state.LastProblemKind = kind;
+    }
+
+    private void LogProblemOnce(string key, string level, string message)
+    {
+        if (string.Equals(_loggedProblemKey, key, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _loggedProblemKey = key;
+
+        if (level == "ERROR")
+        {
+            AppLog.Error(message);
+        }
+        else
+        {
+            AppLog.Warn(message);
+        }
+    }
+
+    private void ClearProblemLog() => _loggedProblemKey = null;
 
     /// <summary>
     /// Notifies the UI only when something worth showing changed, so the tray

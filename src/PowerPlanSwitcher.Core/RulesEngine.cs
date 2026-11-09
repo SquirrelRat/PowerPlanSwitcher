@@ -44,6 +44,16 @@ public static class RulesEngine
                 Forced: true);
         }
 
+        if (snapshot.PowerSource == PowerSource.Unknown)
+        {
+            return new PlanTarget(
+                null,
+                activity,
+                PowerSource.Unknown,
+                "power source unknown",
+                Forced: false);
+        }
+
         return new PlanTarget(
             rules.Get(activity, snapshot.PowerSource),
             activity,

@@ -1,0 +1,33 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System.Windows;assembly=PresentationFramework">
+
+    <!-- Windows high contrast palette. SystemColors follow the user's scheme. -->
+    <SolidColorBrush x:Key="WindowBackground" Color="{x:Static sys:SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="CardBackground" Color="{x:Static sys:SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="ControlBackground" Color="{x:Static sys:SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="Border" Color="{x:Static sys:SystemColors.WindowFrameColor}" />
+    <SolidColorBrush x:Key="TextBoxBorder" Color="{x:Static sys:SystemColors.WindowFrameColor}" />
+    <SolidColorBrush x:Key="Text" Color="{x:Static sys:SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="SecondaryText" Color="{x:Static sys:SystemColors.GrayTextColor}" />
+    <SolidColorBrush x:Key="Accent" Color="{x:Static sys:SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="AccentHover" Color="{x:Static sys:SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="AccentForeground" Color="{x:Static sys:SystemColors.HighlightTextColor}" />
+    <SolidColorBrush x:Key="Control" Color="{x:Static sys:SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="Track" Color="{x:Static sys:SystemColors.GrayTextColor}" />
+    <SolidColorBrush x:Key="ListHover" Color="{x:Static sys:SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="Press" Color="{x:Static sys:SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="IdleStatus" Color="{x:Static sys:SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="ActiveStatus" Color="{x:Static sys:SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="WindowBorder" Color="{x:Static sys:SystemColors.WindowFrameColor}" />
+
+    <SolidColorBrush x:Key="ProblemBackground" Color="{x:Static sys:SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="ProblemBorder" Color="{x:Static sys:SystemColors.WindowFrameColor}" />
+    <SolidColorBrush x:Key="ProblemText" Color="{x:Static sys:SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="NoticeBackground" Color="{x:Static sys:SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="NoticeBorder" Color="{x:Static sys:SystemColors.WindowFrameColor}" />
+    <SolidColorBrush x:Key="NoticeText" Color="{x:Static sys:SystemColors.WindowTextColor}" />
+
+    <FontFamily x:Key="BodyFont">Segoe UI</FontFamily>
+
+</ResourceDictionary>

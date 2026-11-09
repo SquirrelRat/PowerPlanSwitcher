@@ -35,7 +35,7 @@ public sealed class ConfigStoreTests : IDisposable
         var config = _store.Load();
 
         Assert.Equal(1, config.Version);
-        Assert.True(config.StartWithWindows);
+        Assert.False(config.StartWithWindows);
         Assert.Equal(5, config.Idle.InputTimeoutMinutes);
         Assert.Empty(config.Rules.UnsetSlots);
     }
@@ -223,7 +223,8 @@ public sealed class ConfigStoreTests : IDisposable
             new Guid("a1841308-3541-4fab-bc81-f71556f20b4a"),
             config.Rules.Get(Activity.Idle, PowerSource.Ac));
         Assert.False(File.Exists(Path.Combine(_directory, "settings.json.bad")));
-        Assert.Null(reported);
+        Assert.NotNull(reported);
+        Assert.Contains("acActive", reported);
     }
 
     [Fact]
@@ -292,5 +293,108 @@ public sealed class ConfigStoreTests : IDisposable
         var ex = Record.Exception(() => _store.Load());
 
         Assert.Null(ex);
+    }
+
+    [Fact]
+    public void WrongScalarType_KeepsTheOtherSettings()
+    {
+        File.WriteAllText(
+            Path.Combine(_directory, "settings.json"),
+            """{"version":1,"startWithWindows":false,"scanIntervalSeconds":"10","idle":{"inputTimeoutMinutes":3}}""");
+        string? reported = null;
+        _store.ProblemReported += m => reported = m;
+
+        var config = _store.Load();
+
+        Assert.False(config.StartWithWindows);
+        Assert.Equal(2, config.ScanIntervalSeconds);
+        Assert.Equal(3, config.Idle.InputTimeoutMinutes);
+        Assert.False(File.Exists(Path.Combine(_directory, "settings.json.bad")));
+        Assert.NotNull(reported);
+        Assert.Contains("scanIntervalSeconds", reported);
+    }
+
+    [Fact]
+    public void UnknownSectionFields_SurviveASave()
+    {
+        File.WriteAllText(
+            Path.Combine(_directory, "settings.json"),
+            """{"version":1,"someFutureField":42,"rules":{"acActive":"381b4222-f694-41f0-9685-ff5bb260df2e","futureRule":"keep"},"idle":{"onLock":false,"futureFlag":true}}""");
+
+        var config = _store.Load();
+        Assert.False(config.Idle.OnLock);
+
+        _store.Save(config);
+        string saved = File.ReadAllText(Path.Combine(_directory, "settings.json"));
+
+        Assert.Contains("someFutureField", saved);
+        Assert.Contains("futureRule", saved);
+        Assert.Contains("futureFlag", saved);
+    }
+
+    [Fact]
+    public void NewerVersion_LoadsKnownFieldsAndReports()
+    {
+        File.WriteAllText(
+            Path.Combine(_directory, "settings.json"),
+            """{"version":7,"startWithWindows":false}""");
+        string? reported = null;
+        _store.ProblemReported += m => reported = m;
+
+        var config = _store.Load();
+
+        Assert.Equal(7, config.Version);
+        Assert.False(config.StartWithWindows);
+        Assert.False(File.Exists(Path.Combine(_directory, "settings.json.bad")));
+        Assert.NotNull(reported);
+        Assert.Contains("newer", reported, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void WrongTypedRuleCell_IsUnsetAndReported()
+    {
+        File.WriteAllText(
+            Path.Combine(_directory, "settings.json"),
+            """{"rules":{"acActive":123,"acIdle":"a1841308-3541-4fab-bc81-f71556f20b4a"}}""");
+        string? reported = null;
+        _store.ProblemReported += m => reported = m;
+
+        var config = _store.Load();
+
+        Assert.Null(config.Rules.Get(Activity.Active, PowerSource.Ac));
+        Assert.Equal(
+            new Guid("a1841308-3541-4fab-bc81-f71556f20b4a"),
+            config.Rules.Get(Activity.Idle, PowerSource.Ac));
+        Assert.NotNull(reported);
+        Assert.Contains("acActive", reported);
+    }
+
+    [Fact]
+    public void NestedRulesOverrideFlatRules()
+    {
+        File.WriteAllText(
+            Path.Combine(_directory, "settings.json"),
+            """{"rules":{"acActive":"381b4222-f694-41f0-9685-ff5bb260df2e","active":{"ac":"a1841308-3541-4fab-bc81-f71556f20b4a"}}}""");
+
+        var config = _store.Load();
+
+        Assert.Equal(
+            new Guid("a1841308-3541-4fab-bc81-f71556f20b4a"),
+            config.Rules.Get(Activity.Active, PowerSource.Ac));
+    }
+
+    [Fact]
+    public void SaveFailure_IsReported()
+    {
+        string path = Path.Combine(_directory, "blocked");
+        File.WriteAllText(path, "not a directory");
+        string? reported = null;
+        var store = new ConfigStore(path);
+        store.ProblemReported += m => reported = m;
+
+        store.Save(new AppConfig());
+
+        Assert.NotNull(reported);
+        Assert.Contains("saved", reported, StringComparison.OrdinalIgnoreCase);
     }
 }

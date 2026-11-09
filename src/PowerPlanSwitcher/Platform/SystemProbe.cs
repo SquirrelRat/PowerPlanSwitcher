@@ -9,7 +9,7 @@ namespace PowerPlanSwitcher.Platform;
 /// Reads the machine state the rules need. Every member is safe to call
 /// repeatedly and never throws to the caller.
 /// </summary>
-public sealed class SystemProbe : IDisposable
+public sealed class SystemProbe : ISystemProbe
 {
     private const int SpiGetScreensaverRunning = 114;
     private const uint DesktopReadObjects = 1;
@@ -107,7 +107,7 @@ public sealed class SystemProbe : IDisposable
         return running;
     }
 
-    /// <summary>Battery when unplugged, AC otherwise. Unknown is treated as AC.</summary>
+    /// <summary>Battery when unplugged, AC when plugged in, unknown on a read failure.</summary>
     public PowerSource GetPowerSource()
     {
         try
@@ -119,10 +119,29 @@ public sealed class SystemProbe : IDisposable
         }
         catch (Exception)
         {
-            // Assume a desktop that is always on AC.
+            // Fall through to Unknown.
         }
 
-        return PowerSource.Ac;
+        return PowerSource.Unknown;
+    }
+
+    /// <summary>True when the machine reports battery hardware.</summary>
+    public bool HasBattery()
+    {
+        try
+        {
+            if (GetSystemPowerStatus(out SystemPowerStatus status))
+            {
+                // 128 means no battery; 255 means the OS did not say.
+                return status.BatteryFlag == 255 || (status.BatteryFlag & 128) == 0;
+            }
+        }
+        catch (Exception)
+        {
+            // Show the battery column rather than hide a real one.
+        }
+
+        return true;
     }
 
     /// <summary>

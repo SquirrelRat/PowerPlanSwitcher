@@ -7,9 +7,9 @@ namespace PowerPlanSwitcher.Services;
 /// Everything the app does to power plans: list, read, and apply.
 /// Applying always verifies the result.
 /// </summary>
-public sealed class PowerPlanService
+public sealed class PowerPlanService : IPowerPlanService
 {
-    public IReadOnlyList<PowerPlanInfo> ListPlans()
+    public IReadOnlyList<PowerPlanInfo>? ListPlans()
     {
         try
         {
@@ -18,7 +18,7 @@ public sealed class PowerPlanService
         catch (Exception ex)
         {
             AppLog.Error("listing power plans failed: " + ex);
-            return Array.Empty<PowerPlanInfo>();
+            return null;
         }
     }
 

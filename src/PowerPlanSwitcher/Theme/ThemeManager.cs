@@ -1,16 +1,27 @@
-using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
 using Microsoft.Win32;
 
 namespace PowerPlanSwitcher.Theme;
 
 /// <summary>
-/// Applies the light or dark surface to a window, following the system setting.
+/// Applies the light, dark, or high-contrast surface to a window, following the
+/// system setting.
 /// </summary>
 public static class ThemeManager
 {
     private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
     private const string AppsUseLightTheme = "AppsUseLightTheme";
+    private const int DwmUseImmersiveDarkMode = 20;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr hwnd,
+        int attribute,
+        ref int value,
+        int size);
 
     /// <summary>True when Windows is currently using dark mode for apps.</summary>
     public static bool IsDarkMode()
@@ -48,10 +59,14 @@ public static class ThemeManager
         {
         }
 
+        window.SourceInitialized += (_, _) => ApplyTitleBar(window);
+
         UserPreferenceChangedEventHandler? handler = null;
         handler = (_, args) =>
         {
-            if (args.Category == UserPreferenceCategory.General)
+            if (args.Category is UserPreferenceCategory.General
+                or UserPreferenceCategory.Accessibility
+                or UserPreferenceCategory.Color)
             {
                 Reload(window);
             }
@@ -76,21 +91,30 @@ public static class ThemeManager
 
     private static void ApplyTheme(Window window)
     {
-        string path = IsDarkMode() ? "Theme/FluentTheme.Dark.xaml" : "Theme/FluentTheme.xaml";
-
-        ResourceDictionary? theme = new ResourceDictionary
-        {
-            Source = new Uri(path, UriKind.Relative),
-        };
+        string path = SystemParameters.HighContrast
+            ? "HighContrastTheme.xaml"
+            : IsDarkMode()
+                ? "FluentTheme.Dark.xaml"
+                : "FluentTheme.xaml";
 
         window.Resources.MergedDictionaries.Clear();
-        window.Resources.MergedDictionaries.Add(theme);
+        window.Resources.MergedDictionaries.Add(LoadTheme("Controls.xaml"));
+        window.Resources.MergedDictionaries.Add(LoadTheme(path));
 
-        if (window.Resources["WindowBackground"] is System.Windows.Media.SolidColorBrush background)
+        if (window.Resources["WindowBackground"] is SolidColorBrush background)
         {
             window.Background = background;
         }
+
+        ApplyTitleBar(window);
     }
+
+    private static ResourceDictionary LoadTheme(string fileName) => new()
+    {
+        Source = new Uri(
+            "pack://application:,,,/PowerPlanSwitcher;component/Theme/" + fileName,
+            UriKind.Absolute),
+    };
 
     private static void Reload(Window window)
     {
@@ -115,6 +139,25 @@ public static class ThemeManager
         }
         catch (Exception)
         {
+        }
+    }
+
+    private static void ApplyTitleBar(Window window)
+    {
+        try
+        {
+            IntPtr handle = new WindowInteropHelper(window).Handle;
+            if (handle == IntPtr.Zero)
+            {
+                return;
+            }
+
+            int dark = !SystemParameters.HighContrast && IsDarkMode() ? 1 : 0;
+            DwmSetWindowAttribute(handle, DwmUseImmersiveDarkMode, ref dark, sizeof(int));
+        }
+        catch (Exception)
+        {
+            // The title bar keeps the system default.
         }
     }
 }
