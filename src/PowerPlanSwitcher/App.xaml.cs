@@ -247,6 +247,18 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             AppLog.Error("showing settings failed: " + ex);
+
+            // The window may exist even though showing it failed. Close it for
+            // real so its timer and subscriptions are released; otherwise they
+            // leak while the next ShowSettings builds a second window.
+            try
+            {
+                _settings?.ForceClose();
+            }
+            catch (Exception)
+            {
+            }
+
             _settings = null;
         }
     }

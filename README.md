@@ -3,7 +3,7 @@
 A Windows tray app that switches the active power plan when you go idle, come
 back, or unplug the charger.
 
-Version 0.2.0.
+Version 0.2.1.
 
 ## Download
 
@@ -66,6 +66,9 @@ also works.
 ## Settings
 
 - Start with Windows is off on a new install. Turn it on under General.
+- At startup the app lines the Start with Windows registry entry up with this
+  setting: it rewrites the entry if the exe moved and removes a leftover entry
+  when the setting is off.
 - Changes save as soon as you make them.
 - Show log opens a pane beside the settings. It lists one file per day, refreshes
   the selected file while Live is on, and has buttons to open the file or folder
@@ -77,8 +80,8 @@ also works.
 - A plan that is no longer installed shows as Missing plan. Pick another plan or
   Not set.
 - Force disables the rules grid until you press Return to automatic.
-- The tray menu has Automatic, Force plan, Pause, Resume, Show log, Open log
-  folder, and Exit.
+- The tray menu has Settings..., Show log, Automatic, Force plan, Pause for
+  1 hour, Pause until restart, Resume, Open log folder, and Exit.
 
 ## Configuration
 

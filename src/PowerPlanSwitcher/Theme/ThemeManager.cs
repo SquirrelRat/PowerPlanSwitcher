@@ -45,6 +45,12 @@ public static class ThemeManager
     }
 
     /// <summary>
+    /// True when the dark surfaces should be used: dark mode on and no high
+    /// contrast (high contrast supplies its own colors).
+    /// </summary>
+    public static bool UseDarkSurfaces() => !SystemParameters.HighContrast && IsDarkMode();
+
+    /// <summary>
     /// Replaces the themed dictionaries on <paramref name="window"/> with the ones
     /// matching the current system theme, then applies the window background.
     /// Subscribes once per window; unsubscribes when the window closes.

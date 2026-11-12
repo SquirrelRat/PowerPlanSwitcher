@@ -107,6 +107,26 @@ public sealed class AppStateTests
     }
 
     [Fact]
+    public void PlansKey_ChangesWhenAPlanIsRenamedOrRemoved()
+    {
+        var state = Create();
+        string before = state.PlansKey;
+
+        state.Plans = new[]
+        {
+            new PowerPlanInfo(WellKnownPlans.Balanced, "Balanced renamed"),
+            new PowerPlanInfo(WellKnownPlans.PowerSaver, "Power saver"),
+        };
+        string renamed = state.PlansKey;
+
+        state.Plans = new[] { new PowerPlanInfo(WellKnownPlans.Balanced, "Balanced") };
+        string removed = state.PlansKey;
+
+        Assert.NotEqual(before, renamed);
+        Assert.NotEqual(before, removed);
+    }
+
+    [Fact]
     public void History_KeepsTheNewestTwenty()
     {
         var state = Create();

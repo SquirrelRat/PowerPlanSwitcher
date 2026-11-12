@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
     private readonly Action _saveConfig;
     private readonly DispatcherTimer _logTimer;
     private bool _sessionEnding;
+    private bool _forceClose;
     private bool _logVisible;
     private double _widthBeforeLog;
 
@@ -315,8 +316,26 @@ public partial class SettingsWindow : Window
         }
     }
 
+    /// <summary>
+    /// Closes the window for real, bypassing the hide-on-close behavior. Used
+    /// when App abandons a window that failed mid-open, so its log timer and
+    /// state subscription are released instead of leaking beside a new window.
+    /// </summary>
+    public void ForceClose()
+    {
+        _forceClose = true;
+        Close();
+    }
+
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        // A forced close must reach the Closed handlers (timer stop, dispose).
+        if (_forceClose)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
         // Let Windows shutdown/logoff proceed; config is saved on every change.
         if (_sessionEnding)
         {

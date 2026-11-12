@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1
+
+- The tray menu follows a light or dark switch made while the app runs, and
+  uses system colors under high contrast.
+- A settings window that fails mid-open is closed and cleaned up instead of
+  lingering hidden beside a new one.
+- The settings file name and the plan-change key each live in one place.
+- The README documents the startup check on the Start with Windows entry and
+  lists the full tray menu.
+
 ## 0.2.0
 
 - A wrong-typed settings field now falls back to its default and is named in the
@@ -20,9 +30,9 @@
 - A plan that is no longer installed shows as Missing plan. A failed power API
   call is reported as a read failure, not a deleted plan.
 - An unknown power source leaves the active plan alone.
-- Logs are one file per day under `logs`, kept for 14 days, capped at 5 MB per
-  day with one `.1` part. The settings window has a log pane with a date picker,
-  live refresh, open file, open folder, and copy.
+- Logs are one file per day under `logs`, kept for 14 days. Each day's file
+  rolls at 5 MB and keeps one `.1` part. The settings window has a log pane with a
+  date picker, live refresh, open file, open folder, and copy.
 - Copy diagnostics writes the version, plan list, paths, and recent log lines to
   the clipboard.
 - The window follows light, dark, and high contrast themes. ComboBox, TextBox,

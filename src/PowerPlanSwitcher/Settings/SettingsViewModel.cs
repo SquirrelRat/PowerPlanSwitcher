@@ -329,7 +329,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>Rebuilds the plan list only when the plan set itself changed.</summary>
     private void SyncPlans()
     {
-        string key = string.Join("|", _state.Plans.Select(p => p.Guid + ":" + p.Name));
+        string key = _state.PlansKey;
 
         if (key == _planKey)
         {

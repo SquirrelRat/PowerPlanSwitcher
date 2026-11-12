@@ -61,6 +61,12 @@ public sealed class AppState
     public PowerPlanInfo? FindPlan(Guid? guid) =>
         guid is null ? null : Plans.FirstOrDefault(p => p.Guid == guid.Value);
 
+    /// <summary>
+    /// Identifies the current plan set. Changes when a plan is added, removed,
+    /// or renamed, so UIs can rebuild their plan lists only then.
+    /// </summary>
+    public string PlansKey => string.Join("|", Plans.Select(p => p.Guid + ":" + p.Name));
+
     public void Pause(TimeSpan? duration)
     {
         if (duration is not null && duration.Value <= TimeSpan.Zero)
@@ -109,7 +115,7 @@ public sealed class AppState
     public string GetChangeSignature() => string.Join(
         "|",
         Plans.Count,
-        string.Join(",", Plans.Select(p => p.Guid + ":" + p.Name)),
+        PlansKey,
         ActivePlan?.Guid.ToString() ?? "none",
         ActivePlan?.Name ?? "",
         Target?.PlanGuid?.ToString() ?? "unset",

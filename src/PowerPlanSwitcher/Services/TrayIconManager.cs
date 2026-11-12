@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using Microsoft.Win32;
 using PowerPlanSwitcher.Platform;
 using PowerPlanSwitcher.Theme;
 
@@ -27,6 +28,10 @@ public sealed class TrayIconManager : IDisposable
     private readonly ToolStripMenuItem _resumeItem;
     private string? _lastBalloonedProblem;
     private string? _lastPlanKey;
+    private readonly SynchronizationContext? _uiContext;
+    private bool? _darkMenu;
+
+    private static readonly Color DarkMenuText = Color.FromArgb(0xF2, 0xF2, 0xF4);
 
     public TrayIconManager(AppState state)
     {
@@ -38,12 +43,8 @@ public sealed class TrayIconManager : IDisposable
         _pausedIcon = TrayIcons.Paused;
 
         _menu = new ContextMenuStrip();
-
-        if (ThemeManager.IsDarkMode())
-        {
-            _menu.Renderer = new DarkMenuRenderer();
-            _menu.ForeColor = Color.FromArgb(0xF2, 0xF2, 0xF4);
-        }
+        _uiContext = SynchronizationContext.Current;
+        ApplyMenuTheme();
 
         _headerItem = new ToolStripMenuItem("Power Plan Switcher") { Enabled = false };
         _menu.Items.Add(_headerItem);
@@ -88,6 +89,10 @@ public sealed class TrayIconManager : IDisposable
         };
 
         _state.Changed += Refresh;
+
+        // The window re-themes live; follow along so the menu never disagrees
+        // with it after a mid-session theme change.
+        SystemEvents.UserPreferenceChanged += OnPreferenceChanged;
         Refresh();
     }
 
@@ -130,6 +135,69 @@ public sealed class TrayIconManager : IDisposable
         return item;
     }
 
+    private void OnPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category is not (UserPreferenceCategory.General
+            or UserPreferenceCategory.Accessibility
+            or UserPreferenceCategory.Color))
+        {
+            return;
+        }
+
+        // SystemEvents raises on its own thread; the menu belongs to the UI thread.
+        if (_uiContext is null)
+        {
+            ApplyMenuTheme();
+            return;
+        }
+
+        _uiContext.Post(_ => ApplyMenuTheme(), null);
+    }
+
+    /// <summary>Matches the menu renderer and text color to the current theme.</summary>
+    private void ApplyMenuTheme()
+    {
+        bool dark = ThemeManager.UseDarkSurfaces();
+
+        if (dark == _darkMenu)
+        {
+            return;
+        }
+
+        _darkMenu = dark;
+
+        if (dark)
+        {
+            _menu.Renderer = new DarkMenuRenderer();
+            _menu.ForeColor = DarkMenuText;
+        }
+        else
+        {
+            _menu.Renderer = null;
+            _menu.ForeColor = SystemColors.ControlText;
+        }
+
+        RecolorMenuItems();
+    }
+
+    private void RecolorMenuItems()
+    {
+        Color text = _menu.ForeColor;
+
+        foreach (ToolStripItem item in _menu.Items)
+        {
+            item.ForeColor = text;
+        }
+
+        if (_forceMenu is not null)
+        {
+            foreach (ToolStripItem item in _forceMenu.DropDownItems)
+            {
+                item.ForeColor = text;
+            }
+        }
+    }
+
     private void Refresh()
     {
         try
@@ -164,7 +232,7 @@ public sealed class TrayIconManager : IDisposable
 
     private void RebuildForceMenuIfNeeded()
     {
-        string key = string.Join("|", _state.Plans.Select(p => p.Guid + ":" + p.Name));
+        string key = _state.PlansKey;
 
         if (key == _lastPlanKey)
         {
@@ -266,6 +334,14 @@ public sealed class TrayIconManager : IDisposable
 
     public void Dispose()
     {
+        try
+        {
+            SystemEvents.UserPreferenceChanged -= OnPreferenceChanged;
+        }
+        catch (Exception)
+        {
+        }
+
         try
         {
             _state.Changed -= Refresh;

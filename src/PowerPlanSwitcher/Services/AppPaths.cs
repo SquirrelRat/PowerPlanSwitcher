@@ -1,4 +1,5 @@
 using System.IO;
+using PowerPlanSwitcher.Core;
 
 namespace PowerPlanSwitcher.Services;
 
@@ -26,7 +27,7 @@ public static class AppPaths
         }
     }
 
-    public static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
+    public static string SettingsPath => Path.Combine(DataDirectory, ConfigStore.FileName);
 
     public static string LogDirectory => Path.Combine(DataDirectory, "logs");
 }
