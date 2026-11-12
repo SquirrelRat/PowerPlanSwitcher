@@ -17,6 +17,12 @@ public sealed class AppConfigTests
         Assert.False(new AppConfig().StartWithWindows);
     }
 
+    [Fact]
+    public void CheckForUpdates_DefaultsToOn()
+    {
+        Assert.True(new AppConfig().CheckForUpdates);
+    }
+
     [Theory]
     [InlineData(0, 1)]
     [InlineData(-30, 1)]

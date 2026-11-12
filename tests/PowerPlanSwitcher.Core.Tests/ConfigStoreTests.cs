@@ -296,6 +296,45 @@ public sealed class ConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void CheckForUpdates_LoadsFalseAndRoundTrips()
+    {
+        File.WriteAllText(Path.Combine(_directory, "settings.json"), """{"checkForUpdates":false}""");
+
+        var config = _store.Load();
+
+        Assert.False(config.CheckForUpdates);
+        _store.Save(config);
+        Assert.False(_store.Load().CheckForUpdates);
+    }
+
+    [Fact]
+    public void CheckForUpdates_MissingFieldDefaultsToOnWithoutAProblem()
+    {
+        File.WriteAllText(Path.Combine(_directory, "settings.json"), """{"startWithWindows":false}""");
+        string? reported = null;
+        _store.ProblemReported += m => reported = m;
+
+        var config = _store.Load();
+
+        Assert.True(config.CheckForUpdates);
+        Assert.Null(reported);
+    }
+
+    [Fact]
+    public void CheckForUpdates_WrongTypeReportsTheFieldAndKeepsTheDefault()
+    {
+        File.WriteAllText(Path.Combine(_directory, "settings.json"), """{"checkForUpdates":"yes"}""");
+        string? reported = null;
+        _store.ProblemReported += m => reported = m;
+
+        var config = _store.Load();
+
+        Assert.True(config.CheckForUpdates);
+        Assert.NotNull(reported);
+        Assert.Contains("checkForUpdates", reported);
+    }
+
+    [Fact]
     public void WrongScalarType_KeepsTheOtherSettings()
     {
         File.WriteAllText(

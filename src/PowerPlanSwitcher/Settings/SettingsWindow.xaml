@@ -76,6 +76,21 @@
                                        FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"
                                        Foreground="{DynamicResource SecondaryText}"
                                        Visibility="{Binding IsPaused, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{Binding UpdateLine}"
+                                        FontSize="11" Margin="0,2,0,0"
+                                        Foreground="{DynamicResource SecondaryText}"
+                                        AutomationProperties.Name="Update state" />
+                            <TextBlock Text="{Binding UpdateNote}"
+                                        FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"
+                                        Foreground="{DynamicResource SecondaryText}"
+                                        Visibility="{Binding HasUpdateNote, Converter={StaticResource BoolToVis}}" />
+
+                            <WrapPanel Margin="0,10,0,0"
+                                       Visibility="{Binding CanUpdate, Converter={StaticResource BoolToVis}}">
+                                <Button Content="_Install update" Click="OnInstallUpdate"
+                                        Style="{DynamicResource AccentButton}" Margin="0,0,8,8"
+                                        AutomationProperties.Name="Install update" />
+                            </WrapPanel>
 
                             <Border Background="{DynamicResource ProblemBackground}"
                                     BorderBrush="{DynamicResource ProblemBorder}"
@@ -280,6 +295,24 @@
                                           Click="OnAutoStartChanged"
                                           AutomationProperties.Name="Start with Windows" />
                             </Grid>
+
+                            <Separator Margin="0,10,0,8" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Check for updates"
+                                           Style="{DynamicResource BodyText}" TextWrapping="Wrap" />
+                                <CheckBox Grid.Column="1" IsChecked="{Binding CheckForUpdates, Mode=TwoWay}"
+                                          Click="OnCheckForUpdatesChanged"
+                                          AutomationProperties.Name="Check for updates" />
+                            </Grid>
+
+                            <TextBlock Text="Once a day the app asks GitHub whether a newer release exists. Nothing else is sent."
+                                       FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SecondaryText}" />
 
                             <Separator Margin="0,10,0,8" />
 

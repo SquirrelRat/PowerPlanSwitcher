@@ -40,6 +40,12 @@ public sealed class AppState
     /// <summary>What kind of problem <see cref="LastProblem"/> is, if any.</summary>
     public ProblemKind? LastProblemKind { get; set; }
 
+    /// <summary>A newer release the user can install, or null.</summary>
+    public PendingUpdate? PendingUpdate { get; set; }
+
+    /// <summary>What the updater is doing right now, shown in the status card.</summary>
+    public string? UpdateStatus { get; set; }
+
     private readonly List<SwitchRecord> _history = new();
 
     public IReadOnlyList<SwitchRecord> History => _history;
@@ -128,8 +134,17 @@ public sealed class AppState
         PausedUntil?.ToString() ?? "",
         HasBattery,
         LastProblem ?? "",
-        LastProblemKind?.ToString() ?? "");
+        LastProblemKind?.ToString() ?? "",
+        PendingUpdate?.Version ?? "",
+        UpdateStatus ?? "");
 }
+
+/// <summary>A release that is newer than the running version.</summary>
+public sealed record PendingUpdate(
+    string Version,
+    string ExeUrl,
+    string HashUrl,
+    string ReleasePageUrl);
 
 /// <summary>One successful switch, kept for the recent-changes list.</summary>
 public sealed record SwitchRecord(

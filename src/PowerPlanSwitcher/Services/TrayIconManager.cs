@@ -28,6 +28,8 @@ public sealed class TrayIconManager : IDisposable
     private readonly ToolStripMenuItem _resumeItem;
     private string? _lastBalloonedProblem;
     private string? _lastPlanKey;
+    private string? _lastUpdateBalloon;
+    private readonly ToolStripMenuItem _updateItem;
     private readonly SynchronizationContext? _uiContext;
     private bool? _darkMenu;
 
@@ -49,6 +51,11 @@ public sealed class TrayIconManager : IDisposable
         _headerItem = new ToolStripMenuItem("Power Plan Switcher") { Enabled = false };
         _menu.Items.Add(_headerItem);
         _menu.Items.Add(new ToolStripSeparator());
+
+        _updateItem = Item("Update...", () => UpdateRequested?.Invoke());
+        _updateItem.Visible = false;
+        _menu.Items.Add(_updateItem);
+
         _menu.Items.Add(Item("Settings...", () => OpenSettingsRequested?.Invoke()));
         _menu.Items.Add(Item("Show log", () => OpenLogRequested?.Invoke()));
         _menu.Items.Add(new ToolStripSeparator());
@@ -109,6 +116,9 @@ public sealed class TrayIconManager : IDisposable
     public event Action<TimeSpan?>? PauseRequested;
 
     public event Action? ResumeRequested;
+
+    /// <summary>Raised when the user asks to install the pending update.</summary>
+    public event Action? UpdateRequested;
 
     public event Action? ExitRequested;
 
@@ -213,6 +223,26 @@ public sealed class TrayIconManager : IDisposable
 
             RebuildForceMenuIfNeeded();
             UpdateForceChecks();
+
+            if (_state.PendingUpdate is { } pending)
+            {
+                _updateItem.Text = $"Update to {pending.Version}...";
+                _updateItem.Visible = true;
+
+                if (_lastUpdateBalloon != pending.Version)
+                {
+                    _lastUpdateBalloon = pending.Version;
+                    _icon.ShowBalloonTip(
+                        5000,
+                        "Power Plan Switcher",
+                        $"Version {pending.Version} is available. Use Update on the tray menu to install it.",
+                        ToolTipIcon.Info);
+                }
+            }
+            else
+            {
+                _updateItem.Visible = false;
+            }
 
             if (_state.LastProblem is null)
             {

@@ -127,6 +127,26 @@ public sealed class AppStateTests
     }
 
     [Fact]
+    public void ChangeSignature_TracksPendingUpdateAndStatus()
+    {
+        var state = Create();
+        string before = state.GetChangeSignature();
+
+        state.PendingUpdate = new PendingUpdate("0.3.1", "https://exe", "https://hash", "https://page");
+        string pending = state.GetChangeSignature();
+
+        state.UpdateStatus = "Downloading update";
+        string downloading = state.GetChangeSignature();
+
+        state.UpdateStatus = null;
+        string settled = state.GetChangeSignature();
+
+        Assert.NotEqual(before, pending);
+        Assert.NotEqual(pending, downloading);
+        Assert.Equal(pending, settled);
+    }
+
+    [Fact]
     public void History_KeepsTheNewestTwenty()
     {
         var state = Create();

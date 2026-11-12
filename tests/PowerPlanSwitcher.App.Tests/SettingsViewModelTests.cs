@@ -65,6 +65,40 @@ public sealed class SettingsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void CheckForUpdates_RoundTripsIntoTheConfig()
+    {
+        var (state, viewModel, _) = Create();
+
+        Assert.True(viewModel.CheckForUpdates);
+
+        viewModel.CheckForUpdates = false;
+
+        Assert.False(state.Config.CheckForUpdates);
+    }
+
+    [Fact]
+    public void UpdateLine_ShowsThePendingVersionAndFollowsState()
+    {
+        var (state, viewModel, _) = Create();
+
+        Assert.Contains("up to date", viewModel.UpdateLine, StringComparison.OrdinalIgnoreCase);
+        Assert.False(viewModel.CanUpdate);
+
+        state.PendingUpdate = new PendingUpdate("0.9.9", "exe", "hash", "page");
+        viewModel.RefreshFromState();
+
+        Assert.Contains("0.9.9", viewModel.UpdateLine);
+        Assert.True(viewModel.CanUpdate);
+
+        state.PendingUpdate = null;
+        state.UpdateStatus = "Downloading update";
+        viewModel.RefreshFromState();
+
+        Assert.Contains("Downloading update", viewModel.UpdateNote);
+        Assert.True(viewModel.HasUpdateNote);
+    }
+
+    [Fact]
     public void MissingPlan_IsShownAsMissing_NotAsNotSet()
     {
         var (state, viewModel, _) = Create();

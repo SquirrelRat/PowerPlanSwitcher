@@ -13,6 +13,7 @@ public sealed class AppConfig
     public const int MaxScanIntervalSeconds = 60;
 
     private bool _startWithWindows;
+    private bool _checkForUpdates = true;
     private int _scanIntervalSeconds = DefaultScanIntervalSeconds;
 
     /// <summary>Bumped when the on-disk shape changes in a breaking way.</summary>
@@ -26,6 +27,13 @@ public sealed class AppConfig
     {
         get => _startWithWindows;
         set => _startWithWindows = value;
+    }
+
+    /// <summary>Whether the app may contact GitHub to look for a newer release.</summary>
+    public bool CheckForUpdates
+    {
+        get => _checkForUpdates;
+        set => _checkForUpdates = value;
     }
 
     /// <summary>

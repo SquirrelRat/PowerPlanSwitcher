@@ -33,6 +33,7 @@ public sealed class ConfigStore
         "rules",
         "idle",
         "startWithWindows",
+        "checkForUpdates",
         "scanIntervalSeconds",
     };
 
@@ -195,6 +196,19 @@ public sealed class ConfigStore
             else
             {
                 problems.Add("startWithWindows");
+            }
+        }
+
+        if (TryGet(root, "checkForUpdates", out JsonElement check) &&
+            check.ValueKind != JsonValueKind.Null)
+        {
+            if (check.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                config.CheckForUpdates = check.GetBoolean();
+            }
+            else
+            {
+                problems.Add("checkForUpdates");
             }
         }
 

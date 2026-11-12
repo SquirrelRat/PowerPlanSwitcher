@@ -26,6 +26,9 @@ public partial class App : System.Windows.Application
     private TrayIconManager? _tray;
     private SettingsWindow? _settings;
     private ConfigStore? _configStore;
+    private UpdateService? _updateService;
+    private System.Windows.Threading.DispatcherTimer? _updateTimer;
+    private string? _restartPath;
     private Thread? _showWindowThread;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -184,7 +187,19 @@ public partial class App : System.Windows.Application
         _tray.ForcePlanRequested += plan => Dispatcher.Invoke(() => SetForcedPlan(plan));
         _tray.PauseRequested += duration => Dispatcher.Invoke(() => PauseSwitching(duration));
         _tray.ResumeRequested += () => Dispatcher.Invoke(ResumeSwitching);
+        _tray.UpdateRequested += () => Dispatcher.Invoke(InstallUpdate);
         _tray.ExitRequested += () => Dispatcher.Invoke(ExitApp);
+
+        // Remove the leftover exe from a previous self-update, then start
+        // checking; the hourly timer defers to the 24-hour gate inside.
+        UpdateService.TryDeleteOldExe();
+        _updateService = new UpdateService(_state, AppPaths.DataDirectory);
+        _updateTimer = new System.Windows.Threading.DispatcherTimer(
+            TimeSpan.FromHours(1),
+            System.Windows.Threading.DispatcherPriority.Background,
+            (_, _) => _ = RunUpdateCheckAsync(),
+            Dispatcher);
+        _updateTimer.Start();
 
         StartShowWindowListener();
 
@@ -209,6 +224,48 @@ public partial class App : System.Windows.Application
         }
 
         AppLog.Info("ready");
+
+        _ = RunUpdateCheckAsync();
+    }
+
+    private async Task RunUpdateCheckAsync()
+    {
+        if (_updateService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _updateService.CheckAsync();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("update check failed: " + ex);
+        }
+    }
+
+    private async void InstallUpdate()
+    {
+        if (_updateService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (await _updateService.ApplyAsync())
+            {
+                // Start the new exe only after this instance releases the
+                // single-instance mutex, or the new one exits at once.
+                _restartPath = _updateService.RestartPath;
+                ExitApp();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("installing update failed: " + ex);
+        }
     }
 
     private void ShowSettings(bool showLog = false)
@@ -222,7 +279,7 @@ public partial class App : System.Windows.Application
 
             if (_settings is null)
             {
-                _settings = new SettingsWindow(_state, _monitor, SaveConfig);
+                _settings = new SettingsWindow(_state, _monitor, SaveConfig, InstallUpdate);
             }
 
             _settings.Refresh();
@@ -514,6 +571,19 @@ public partial class App : System.Windows.Application
         }
 
         ReleaseMutexIfOwned();
+
+        try
+        {
+            if (_restartPath is not null)
+            {
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(_restartPath) { UseShellExecute = true });
+            }
+        }
+        catch (Exception)
+        {
+            // The user can still start the updated exe by hand.
+        }
 
         base.OnExit(e);
     }

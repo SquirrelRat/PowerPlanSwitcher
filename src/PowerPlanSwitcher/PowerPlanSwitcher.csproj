@@ -16,9 +16,9 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AssemblyName>PowerPlanSwitcher</AssemblyName>
     <RootNamespace>PowerPlanSwitcher</RootNamespace>
-    <Version>0.2.1</Version>
-    <AssemblyVersion>0.2.1.0</AssemblyVersion>
-    <FileVersion>0.2.1.0</FileVersion>
+    <Version>0.3.0</Version>
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
+    <FileVersion>0.3.0.0</FileVersion>
     <AssemblyTitle>Power Plan Switcher</AssemblyTitle>
     <Product>Power Plan Switcher</Product>
     <Description>Windows tray app that switches power plans by activity and power source.</Description>

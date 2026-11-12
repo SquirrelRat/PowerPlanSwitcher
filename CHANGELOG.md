@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- The app checks GitHub once a day for a newer release, on startup and every
+  24 hours while running. A toggle under General turns the check off; it is
+  on by default.
+- When a newer release is out, the tray menu and the settings status card
+  offer Update. The download is checked against the published SHA-256 before
+  anything is replaced, the exe is swapped, and the app restarts.
+- If the exe sits somewhere the app cannot write, the release page opens
+  instead. A failed check or download is shown in the status card and tried
+  again the next day.
+- The last check time lives in `update.json` next to the settings file; the
+  settings file gains only `checkForUpdates`.
+
 ## 0.2.1
 
 - The tray menu follows a light or dark switch made while the app runs, and

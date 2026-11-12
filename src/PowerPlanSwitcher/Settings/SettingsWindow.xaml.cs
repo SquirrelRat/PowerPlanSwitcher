@@ -14,15 +14,17 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsViewModel _viewModel;
     private readonly Action _saveConfig;
+    private readonly Action _installUpdate;
     private readonly DispatcherTimer _logTimer;
     private bool _sessionEnding;
     private bool _forceClose;
     private bool _logVisible;
     private double _widthBeforeLog;
 
-    public SettingsWindow(AppState state, IPlanMonitor planMonitor, Action saveConfig)
+    public SettingsWindow(AppState state, IPlanMonitor planMonitor, Action saveConfig, Action installUpdate)
     {
         _saveConfig = saveConfig;
+        _installUpdate = installUpdate;
 
         InitializeComponent();
 
@@ -171,6 +173,16 @@ public partial class SettingsWindow : Window
             _saveConfig();
         }
     }
+
+    private void OnCheckForUpdatesChanged(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.CommitSettings())
+        {
+            _saveConfig();
+        }
+    }
+
+    private void OnInstallUpdate(object sender, RoutedEventArgs e) => _installUpdate();
 
     private void OnScanIntervalChanged(object sender, SelectionChangedEventArgs e)
     {

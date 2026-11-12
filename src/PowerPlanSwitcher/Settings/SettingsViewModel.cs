@@ -134,6 +134,22 @@ public sealed class SettingsViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    public bool CheckForUpdates
+    {
+        get => _checkForUpdates;
+        set
+        {
+            if (_checkForUpdates == value)
+            {
+                return;
+            }
+
+            _checkForUpdates = value;
+            _state.Config.CheckForUpdates = value;
+            OnPropertyChanged();
+        }
+    }
+
     public int InputTimeoutMinutes
     {
         get => _inputTimeoutMinutes;
@@ -276,6 +292,16 @@ public sealed class SettingsViewModel : INotifyPropertyChanged, IDisposable
 
     public bool ShowBattery => _state.HasBattery;
 
+    public bool CanUpdate => _state.PendingUpdate is not null;
+
+    public string UpdateLine => _state.PendingUpdate is { } pending
+        ? $"Version {pending.Version} available"
+        : $"Up to date ({AppInfo.Version})";
+
+    public string UpdateNote => _state.UpdateStatus ?? string.Empty;
+
+    public bool HasUpdateNote => !string.IsNullOrEmpty(_state.UpdateStatus);
+
     public string Problem => _state.LastProblem ?? string.Empty;
 
     public bool HasProblem => !string.IsNullOrEmpty(_state.LastProblem);
@@ -293,6 +319,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged, IDisposable
     public Guid? IdleBatteryPlan { get; set; }
 
     private bool _startWithWindows;
+    private bool _checkForUpdates;
     private int _inputTimeoutMinutes;
     private int _scanIntervalSeconds;
     private bool _onScreensaver;
@@ -317,6 +344,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged, IDisposable
         EnsureMissingOption(IdleBatteryPlan);
 
         _startWithWindows = _state.Config.StartWithWindows;
+        _checkForUpdates = _state.Config.CheckForUpdates;
         _inputTimeoutMinutes = _state.Config.Idle.InputTimeoutMinutes;
         _scanIntervalSeconds = _state.Config.ScanIntervalSeconds;
         _onScreensaver = _state.Config.Idle.OnScreensaver;

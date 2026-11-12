@@ -3,7 +3,7 @@
 A Windows tray app that switches the active power plan when you go idle, come
 back, or unplug the charger.
 
-Version 0.2.1.
+Version 0.3.0.
 
 ## Download
 
@@ -40,6 +40,9 @@ Windows x64 first, then run the exe. It stays in the notification area.
 - Shows the current mode, the last check time, recent switches, and any problem
   in the settings window. A failure is not left to a tray balloon alone.
 - Keeps one log file per day and shows them in a log pane.
+- Checks GitHub once a day for a newer release and can update itself in one
+  click. That is the app's only network call, and it can be turned off under
+  General.
 
 ## Requirements
 
@@ -74,6 +77,10 @@ also works.
   the selected file while Live is on, and has buttons to open the file or folder
   and copy the text.
 - The pane follows the newest line unless you scroll up.
+- Check for updates is on by default. When a newer release is out, the
+  status card and the tray menu offer Update. The download is checked against
+  the published checksum before anything is replaced, then the app swaps
+  itself and restarts.
 - Copy diagnostics puts the version, OS, runtime, plan list, settings and log
   paths, the last problem, and 40 log lines on the clipboard. Nothing leaves the
   PC.
@@ -100,7 +107,8 @@ file.
   },
   "idle": { "inputTimeoutMinutes": 5, "onScreensaver": true, "onLock": true },
   "scanIntervalSeconds": 2,
-  "startWithWindows": false
+  "startWithWindows": false,
+  "checkForUpdates": true
 }
 ```
 
@@ -111,6 +119,8 @@ too. A wrong JSON type on a scalar field resets that field to its default and
 reports the field; the rest of the file is kept. Fields the app does not know
 survive a save at the top level and in the `rules` and `idle` sections. Idle time
 clamps to 1 to 120 minutes and the scan interval to 1 to 60 seconds.
+`checkForUpdates` turns the daily GitHub check on or off. The last check time
+lives in `update.json` next to the settings file.
 
 The log is one file per day at
 `%LocalAppData%\PowerPlanSwitcher\logs\app-YYYY-MM-DD.log`. The app keeps 14
@@ -144,6 +154,12 @@ These tests need Windows 10 or 11 with both AC and battery available.
 14. Copy diagnostics and paste it into a text file. It includes the version and
     the last 40 log lines.
 15. On a desktop with no battery, the On battery column is hidden.
+16. Launch with the latest release already published (or temporarily point the
+    check at a repo with a newer tag). The tray menu shows Update to X and the
+    settings card offers Install update. Click it: the app downloads, swaps,
+    and restarts on the new version.
+17. Turn Check for updates off, restart, and watch the log: no update check
+    line appears. Turn it back on and the next start checks again.
 
 ## Uninstall
 
@@ -154,8 +170,10 @@ These tests need Windows 10 or 11 with both AC and battery available.
 
 ## Privacy
 
-The app makes no network calls and has no telemetry or account. Settings and
-logs stay under `%LocalAppData%\PowerPlanSwitcher`.
+The app has no telemetry and no account. Its only network contact is a daily
+check for a newer release on GitHub, plus the download when you choose to
+update. Turn it off under General. Settings and logs stay under
+`%LocalAppData%\PowerPlanSwitcher`.
 
 ## License
 
