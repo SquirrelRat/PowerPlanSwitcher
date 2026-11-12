@@ -212,7 +212,7 @@ public sealed class TrayIconManager : IDisposable
     {
         try
         {
-            _icon.Text = BuildTooltip();
+            _icon.Text = TrimTooltip(BuildTooltip());
             _headerItem.Text = BuildHeaderText();
             _icon.Icon = PickIcon();
 
@@ -316,7 +316,20 @@ public sealed class TrayIconManager : IDisposable
         return _state.Target?.Activity == Core.Activity.Idle ? _idleIcon : _activeIcon;
     }
 
+    /// <summary>The menu header stays short; the tooltip carries the detail.</summary>
     private string BuildHeaderText()
+    {
+        string plan = _state.ActivePlan?.Name ?? "no plan active";
+
+        if (_state.Paused)
+        {
+            return $"{plan} (paused)";
+        }
+
+        return _state.ForcedPlan is null ? plan : $"{plan} (forced)";
+    }
+
+    private string BuildTooltip()
     {
         string plan = _state.ActivePlan?.Name ?? "no plan active";
 
@@ -343,17 +356,16 @@ public sealed class TrayIconManager : IDisposable
         return $"{plan}: {activity}, {power} ({mode})";
     }
 
-    private string BuildTooltip()
+    /// <summary>Truncates to what NotifyIcon.Text allows (127 characters).</summary>
+    private static string TrimTooltip(string text)
     {
-        string text = BuildHeaderText();
-
-        // NotifyIcon.Text allows 127 characters on current Windows.
         if (text.Length <= 127)
         {
             return text;
         }
 
         string cut = text[..127];
+
         if (char.IsHighSurrogate(cut[^1]))
         {
             cut = cut[..^1];
@@ -411,14 +423,14 @@ public sealed class TrayIconManager : IDisposable
         {
             e.TextColor = e.Item.Enabled
                 ? Color.FromArgb(0xF2, 0xF2, 0xF4)
-                : Color.FromArgb(0x93, 0x96, 0x9E);
+                : Color.FromArgb(0xA6, 0xAB, 0xB5);
             base.OnRenderItemText(e);
         }
 
         protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
         {
             e.ArrowColor = e.Item?.Enabled == false
-                ? Color.FromArgb(0x93, 0x96, 0x9E)
+                ? Color.FromArgb(0xA6, 0xAB, 0xB5)
                 : Color.FromArgb(0xF2, 0xF2, 0xF4);
             base.OnRenderArrow(e);
         }

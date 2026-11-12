@@ -16,6 +16,13 @@
     <Color x:Key="IdleStatusColorValue">#B26A00</Color>
     <Color x:Key="ActiveStatusColorValue">#0F6B2B</Color>
 
+    <!-- The window backdrop: a gentle falloff that reads as a material
+         behind the cards, in place of DWM transparency. -->
+    <LinearGradientBrush x:Key="WindowBackdrop" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#F7F7FA" Offset="0" />
+        <GradientStop Color="#ECECF1" Offset="1" />
+    </LinearGradientBrush>
+
     <SolidColorBrush x:Key="WindowBackground" Color="{StaticResource WindowBackgroundColor}" />
     <SolidColorBrush x:Key="CardBackground" Color="{StaticResource CardBackgroundColor}" />
     <SolidColorBrush x:Key="ControlBackground" Color="{StaticResource CardBackgroundColor}" />

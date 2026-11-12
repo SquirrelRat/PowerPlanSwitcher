@@ -22,7 +22,6 @@ public static class ThemeManager
         int attribute,
         ref int value,
         int size);
-
     /// <summary>True when Windows is currently using dark mode for apps.</summary>
     public static bool IsDarkMode()
     {
@@ -107,9 +106,13 @@ public static class ThemeManager
         window.Resources.MergedDictionaries.Add(LoadTheme("Controls.xaml"));
         window.Resources.MergedDictionaries.Add(LoadTheme(path));
 
-        if (window.Resources["WindowBackground"] is SolidColorBrush background)
+        if (window.Resources["WindowBackdrop"] is System.Windows.Media.Brush backdrop)
         {
-            window.Background = background;
+            window.Background = backdrop;
+        }
+        else if (window.Resources["WindowBackground"] is System.Windows.Media.Brush fallback)
+        {
+            window.Background = fallback;
         }
 
         ApplyTitleBar(window);
@@ -153,6 +156,7 @@ public static class ThemeManager
         try
         {
             IntPtr handle = new WindowInteropHelper(window).Handle;
+
             if (handle == IntPtr.Zero)
             {
                 return;

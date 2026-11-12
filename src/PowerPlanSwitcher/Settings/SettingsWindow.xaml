@@ -57,14 +57,56 @@
                                         Background="{DynamicResource WindowBackground}"
                                         BorderBrush="{DynamicResource Border}" BorderThickness="1"
                                         CornerRadius="9" Padding="8,2">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsForced}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsPaused}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource IdleStatus}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <TextBlock Text="{Binding ModeLabel}" FontSize="11" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SecondaryText}" />
+                                               Foreground="{DynamicResource SecondaryText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsForced}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsPaused}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource IdleStatus}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </Border>
                             </Grid>
 
-                            <TextBlock Text="{Binding StatusLine}"
-                                       FontSize="18" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Text}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,1,8,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{DynamicResource ActiveStatus}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowIdleDot}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource IdleStatus}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding HasTarget}" Value="False">
+                                                    <Setter Property="Fill" Value="{DynamicResource SecondaryText}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="{Binding StatusLine}"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Text}" />
+                            </StackPanel>
                             <TextBlock Text="{Binding StatusDetail}"
                                        FontSize="12" Margin="0,3,0,0"
                                        TextWrapping="Wrap"
@@ -141,58 +183,61 @@
                                            FontSize="12" Foreground="{DynamicResource NoticeText}" />
                             </Border>
 
-                            <Grid Margin="0,2,0,0" IsEnabled="{Binding IsAutomatic}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="0.75*" />
-                                    <ColumnDefinition Width="1.35*" />
-                                    <ColumnDefinition x:Name="BatteryColumn" Width="1.35*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
+                            <Border Background="{DynamicResource WindowBackground}"
+                                    CornerRadius="6" Padding="10,6" Margin="0,2,0,0">
+                                <Grid IsEnabled="{Binding IsAutomatic}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="1.35*" />
+                                        <ColumnDefinition x:Name="BatteryColumn" Width="1.35*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="On AC"
-                                           Style="{DynamicResource CardCaption}"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,0,0,4" />
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="On battery"
-                                           x:Name="BatteryHeader"
-                                           Style="{DynamicResource CardCaption}"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,0,0,4" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="On AC"
+                                               Style="{DynamicResource CardCaption}"
+                                               HorizontalAlignment="Left"
+                                               Margin="2,0,0,4" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="On battery"
+                                               x:Name="BatteryHeader"
+                                               Style="{DynamicResource CardCaption}"
+                                               HorizontalAlignment="Left"
+                                               Margin="2,0,0,4" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Active"
-                                           Style="{DynamicResource BodyText}" Margin="0,4,8,4" />
-                                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,4,4,4"
-                                          x:Name="ActiveAcCombo"
-                                          ItemsSource="{Binding AvailablePlans}"
-                                          SelectedItem="{Binding SelectedActiveAc, Mode=TwoWay}"
-                                          SelectionChanged="OnRuleChanged"
-                                          AutomationProperties.Name="Active on AC plan" />
-                                <ComboBox Grid.Row="1" Grid.Column="2" Margin="0,4,0,4"
-                                          x:Name="ActiveBatteryCombo"
-                                          ItemsSource="{Binding AvailablePlans}"
-                                          SelectedItem="{Binding SelectedActiveBattery, Mode=TwoWay}"
-                                          SelectionChanged="OnRuleChanged"
-                                          AutomationProperties.Name="Active on battery plan" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Active"
+                                               Style="{DynamicResource BodyText}" Margin="2,4,16,4" />
+                                    <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,4,4,4"
+                                              x:Name="ActiveAcCombo"
+                                              ItemsSource="{Binding AvailablePlans}"
+                                              SelectedItem="{Binding SelectedActiveAc, Mode=TwoWay}"
+                                              SelectionChanged="OnRuleChanged"
+                                              AutomationProperties.Name="Active on AC plan" />
+                                    <ComboBox Grid.Row="1" Grid.Column="2" Margin="0,4,0,4"
+                                              x:Name="ActiveBatteryCombo"
+                                              ItemsSource="{Binding AvailablePlans}"
+                                              SelectedItem="{Binding SelectedActiveBattery, Mode=TwoWay}"
+                                              SelectionChanged="OnRuleChanged"
+                                              AutomationProperties.Name="Active on battery plan" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Idle"
-                                           Style="{DynamicResource BodyText}" Margin="0,4,8,4" />
-                                <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,4,4,4"
-                                          x:Name="IdleAcCombo"
-                                          ItemsSource="{Binding AvailablePlans}"
-                                          SelectedItem="{Binding SelectedIdleAc, Mode=TwoWay}"
-                                          SelectionChanged="OnRuleChanged"
-                                          AutomationProperties.Name="Idle on AC plan" />
-                                <ComboBox Grid.Row="2" Grid.Column="2" Margin="0,4,0,4"
-                                          x:Name="IdleBatteryCombo"
-                                          ItemsSource="{Binding AvailablePlans}"
-                                          SelectedItem="{Binding SelectedIdleBattery, Mode=TwoWay}"
-                                          SelectionChanged="OnRuleChanged"
-                                          AutomationProperties.Name="Idle on battery plan" />
-                            </Grid>
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Idle"
+                                               Style="{DynamicResource BodyText}" Margin="2,4,16,4" />
+                                    <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,4,4,4"
+                                              x:Name="IdleAcCombo"
+                                              ItemsSource="{Binding AvailablePlans}"
+                                              SelectedItem="{Binding SelectedIdleAc, Mode=TwoWay}"
+                                              SelectionChanged="OnRuleChanged"
+                                              AutomationProperties.Name="Idle on AC plan" />
+                                    <ComboBox Grid.Row="2" Grid.Column="2" Margin="0,4,0,4"
+                                              x:Name="IdleBatteryCombo"
+                                              ItemsSource="{Binding AvailablePlans}"
+                                              SelectedItem="{Binding SelectedIdleBattery, Mode=TwoWay}"
+                                              SelectionChanged="OnRuleChanged"
+                                              AutomationProperties.Name="Idle on battery plan" />
+                                </Grid>
+                            </Border>
 
                             <TextBlock Text="Only plans that already exist on this PC are listed. The app never changes the plans themselves."
                                        FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
@@ -344,13 +389,20 @@
                                 <Button Grid.Column="1" Content="Open" Click="OnOpenLogFolder" Padding="12,4" />
                             </Grid>
 
-                            <Button Content="Copy _diagnostics" Click="OnCopyDiagnostics"
-                                    HorizontalAlignment="Left" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Diagnostics" Style="{DynamicResource BodyText}" />
+                                <Button Grid.Column="1" Content="_Copy" Click="OnCopyDiagnostics" Padding="12,4" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
                     <!-- Recent changes -->
-                    <Border Style="{DynamicResource Card}">
+                    <Border Style="{DynamicResource Card}"
+                            Visibility="{Binding HasRecentChanges, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="RECENT CHANGES" Style="{DynamicResource CardCaption}" />
                             <ItemsControl ItemsSource="{Binding RecentChanges}">

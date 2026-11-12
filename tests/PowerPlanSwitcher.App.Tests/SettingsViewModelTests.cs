@@ -99,6 +99,41 @@ public sealed class SettingsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void RecentChangesCard_HidesWhenNothingHappened()
+    {
+        var (state, viewModel, _) = Create();
+
+        Assert.False(viewModel.HasRecentChanges);
+
+        state.AddHistory(new SwitchRecord(
+            DateTimeOffset.Now, "Balanced", Activity.Active, PowerSource.Ac, "test", false));
+        viewModel.RefreshFromState();
+
+        Assert.True(viewModel.HasRecentChanges);
+    }
+
+    [Fact]
+    public void StatusDot_KnowsIdleActiveAndNoTarget()
+    {
+        var (state, viewModel, _) = Create();
+
+        Assert.True(viewModel.HasTarget);
+        Assert.False(viewModel.ShowIdleDot);
+
+        state.Target = new PlanTarget(
+            WellKnownPlans.PowerSaver, Activity.Idle, PowerSource.Battery, "input timeout", false);
+        viewModel.RefreshFromState();
+
+        Assert.True(viewModel.ShowIdleDot);
+
+        state.Target = null;
+        viewModel.RefreshFromState();
+
+        Assert.False(viewModel.HasTarget);
+        Assert.False(viewModel.ShowIdleDot);
+    }
+
+    [Fact]
     public void MissingPlan_IsShownAsMissing_NotAsNotSet()
     {
         var (state, viewModel, _) = Create();

@@ -292,6 +292,15 @@ public sealed class SettingsViewModel : INotifyPropertyChanged, IDisposable
 
     public bool ShowBattery => _state.HasBattery;
 
+    /// <summary>True once at least one switch has happened this run.</summary>
+    public bool HasRecentChanges => _state.History.Count > 0;
+
+    /// <summary>True when the monitor has decided a target at least once.</summary>
+    public bool HasTarget => _state.Target is not null;
+
+    /// <summary>True when the decided target is idle (drives the status dot).</summary>
+    public bool ShowIdleDot => _state.Target is not null && _state.Target.Activity == Core.Activity.Idle;
+
     public bool CanUpdate => _state.PendingUpdate is not null;
 
     public string UpdateLine => _state.PendingUpdate is { } pending

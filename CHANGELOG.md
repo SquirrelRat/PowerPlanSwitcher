@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1
+
+- Settings window polish: the window sits on a subtle gradient backdrop
+  instead of flat color, the rules grid has an anchored header with a band
+  behind it, the status line has an idle/active dot, the mode pill is tinted
+  when forced or paused, the empty Recent Changes card hides itself, and the
+  GENERAL rows share one layout.
+- The tray menu header stays short (plan plus mode); the detail moved to the
+  tooltip. Disabled tray text is brighter.
+
 ## 0.3.0
 
 - The app checks GitHub once a day for a newer release, on startup and every

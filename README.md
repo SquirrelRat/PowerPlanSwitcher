@@ -3,7 +3,7 @@
 A Windows tray app that switches the active power plan when you go idle, come
 back, or unplug the charger.
 
-Version 0.3.0.
+Version 0.3.1.
 
 ## Download
 
@@ -15,7 +15,10 @@ Windows x64 first, then run the exe. It stays in the notification area.
 
 <p align="center">
   <img src="docs/images/settings-top.png" width="300" alt="Settings window showing status and the plan matrix">
-  <img src="docs/images/settings-bottom.png" width="300" alt="Settings window showing scanning, general settings, and recent changes">
+  <img src="docs/images/settings-bottom.png" width="300" alt="Settings window showing idle detection, scanning, and general settings">
+</p>
+<p align="center">
+  <img src="docs/images/log-pane.png" width="560" alt="Settings window with the log pane open beside it">
 </p>
 <p align="center">
   <img src="docs/images/tray-menu.png" width="260" alt="Tray menu with Automatic, Force plan, Pause, and Exit">

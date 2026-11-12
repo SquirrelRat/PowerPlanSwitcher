@@ -10,7 +10,7 @@ public static class AppInfo
         get
         {
             Version? version = typeof(AppInfo).Assembly.GetName().Version;
-            return version is null ? "0.3.0" : version.ToString(3);
+            return version is null ? "0.3.1" : version.ToString(3);
         }
     }
 
